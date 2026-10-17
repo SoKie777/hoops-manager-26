@@ -114,6 +114,22 @@ UI.changes.importFile = function (el) {
 };
 
 // ==================================================================== délégation d'événements
+// Effet d'onde + vibration + clic sonore sur tous les boutons.
+document.addEventListener('pointerdown', function (ev) {
+  var b = ev.target.closest('.btn, .seg button, .tabs button, .team-pick button');
+  if (!b || b.disabled || BM.Juice.reduced) return;
+  var r = b.getBoundingClientRect(), size = Math.max(r.width, r.height);
+  var s = document.createElement('span');
+  s.className = 'ripple';
+  s.style.cssText = 'width:' + size + 'px;height:' + size + 'px;left:' + (ev.clientX - r.left - size / 2) + 'px;top:' + (ev.clientY - r.top - size / 2) + 'px';
+  if (getComputedStyle(b).position === 'static') b.style.position = 'relative';
+  b.style.overflow = 'hidden';
+  b.appendChild(s);
+  setTimeout(function () { s.remove(); }, 600);
+  BM.Juice.haptic(b.classList.contains('primary') ? 'medium' : 'light');
+  BM.Juice.sound('tap');
+});
+
 document.addEventListener('click', function (ev) {
   var el = ev.target.closest('[data-act]');
   if (!el) return;
@@ -139,6 +155,6 @@ document.addEventListener('keydown', function (ev) {
 
 (function boot() {
   var theme = UI.store.get('hoops_theme');
-  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
   UI.render();
 })();

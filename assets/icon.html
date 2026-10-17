@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Icône Hoops Manager</title>
+<!-- Source de l'icône et de l'écran de démarrage : capturés en PNG (icon-only.png, splash.png) pour @capacitor/assets. -->
+<style>
+  @font-face { font-family: "Barlow Condensed"; font-weight: 800; src: url(../css/fonts/barlow-condensed-800.woff2) format("woff2"); }
+  body { margin: 0; background: #000; }
+  #icon, #splash { position: relative; overflow: hidden; }
+  #icon { width: 1024px; height: 1024px; }
+  #splash { width: 2732px; height: 2732px; display: grid; place-items: center; }
+  .bg { position: absolute; inset: 0; background: radial-gradient(70% 70% at 50% 30%, #2a1a0e, #07090d 70%); }
+  .rays { position: absolute; inset: -20%; background: repeating-conic-gradient(from 0deg, rgba(255,122,26,0.07) 0deg 8deg, transparent 8deg 16deg); }
+  .court { position: absolute; left: 50%; top: 50%; border: 10px solid rgba(255,255,255,0.08); border-radius: 50%; transform: translate(-50%, -50%); }
+  .title { font-family: "Barlow Condensed", sans-serif; font-weight: 800; text-transform: uppercase; color: #fff; text-align: center; line-height: 0.9; }
+  .title span { background: linear-gradient(135deg, #ffb547, #ff7a1a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+</style>
+</head>
+<body>
+<div id="icon">
+  <div class="bg"></div><div class="rays"></div>
+  <div class="court" style="width:860px;height:860px"></div>
+  <svg viewBox="0 0 100 100" style="position:absolute;left:212px;top:212px;width:600px;height:600px;filter:drop-shadow(0 40px 60px rgba(255,102,0,0.55))">
+    <defs><radialGradient id="g" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#ffc078"/><stop offset="1" stop-color="#d9480f"/></radialGradient></defs>
+    <circle cx="50" cy="50" r="46" fill="url(#g)"/>
+    <g fill="none" stroke="#3a1300" stroke-width="3.2" stroke-linecap="round">
+      <path d="M4 50h92M50 4v92"/><path d="M18 17c14 14 14 52 0 66M82 17c-14 14-14 52 0 66"/>
+    </g>
+    <ellipse cx="36" cy="28" rx="16" ry="8" fill="#fff" opacity="0.18" transform="rotate(-25 36 28)"/>
+  </svg>
+</div>
+<div id="splash">
+  <div class="bg"></div><div class="rays"></div>
+  <div style="position:relative;display:grid;justify-items:center;gap:60px">
+    <svg viewBox="0 0 100 100" style="width:520px;height:520px;filter:drop-shadow(0 50px 80px rgba(255,102,0,0.5))">
+      <defs><radialGradient id="g2" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#ffc078"/><stop offset="1" stop-color="#d9480f"/></radialGradient></defs>
+      <circle cx="50" cy="50" r="46" fill="url(#g2)"/>
+      <g fill="none" stroke="#3a1300" stroke-width="3.2" stroke-linecap="round">
+        <path d="M4 50h92M50 4v92"/><path d="M18 17c14 14 14 52 0 66M82 17c-14 14-14 52 0 66"/>
+      </g>
+    </svg>
+    <div class="title" style="font-size:230px">Hoops <span>Manager</span> 26</div>
+  </div>
+</div>
+</body>
+</html>

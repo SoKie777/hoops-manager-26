@@ -73,24 +73,34 @@ UI.icon = function (k) {
 // ==================================================================== rendu principal
 UI.render = function () {
   var app = document.getElementById('app');
-  if (!UI.g) { app.innerHTML = UI.startScreen(); return; }
+  if (!UI.g) { app.innerHTML = UI.startScreen(); UI.afterRender(); return; }
   var g = UI.g, me = g.teams[g.userTeam];
+  // Animation d'entrée seulement au changement d'écran (pas à chaque tri ou réglage).
+  var screenKey = UI.tab + '/' + (UI.sub[UI.tab] || '');
+  var enter = screenKey !== UI.lastScreen;
+  UI.lastScreen = screenKey;
+  var matchToday = !!BM.userFixtureToday(g);
   var unread = g.inbox.some(function (m) { return !m.read; });
   var tabs = [['home', 'Accueil'], ['squad', 'Effectif'], ['tactics', 'Tactique'], ['comp', 'Ligue'], ['market', 'Mercato'], ['club', 'Club']];
   var body = UI['tab_' + UI.tab]();
   app.innerHTML =
-    '<div class="app">' +
+    '<div class="app" style="--team:' + me.color + '">' +
     '<header class="topbar">' + UI.teamBadge(me) +
     '<div class="who"><b>' + UI.esc(me.name) + '</b><span>' + UI.esc(BM.dateLabel(g)) + ' · Saison ' + g.season + '</span></div>' +
     '<button class="btn sm" data-act="fastForward" title="Avancer jusqu\'au prochain événement">▶▶</button>' +
-    '<button class="btn primary" data-act="continue">Continuer</button>' +
+    '<button class="btn primary' + (matchToday ? ' pulse' : '') + '" data-act="continue">' + (matchToday ? 'Match !' : 'Continuer') + '</button>' +
     '</header>' +
-    '<main class="page">' + body + '</main>' +
+    '<main class="page' + (enter ? ' enter' : '') + '">' + body + '</main>' +
     '<nav class="nav"><div class="nav-inner">' + tabs.map(function (t) {
       var dot = t[0] === 'home' && unread ? ' class="dot"' : '';
       return '<button data-act="tab" data-tab="' + t[0] + '" class="' + (UI.tab === t[0] ? 'on' : '') + '"><span' + dot + '>' + UI.icon(t[0]) + '</span>' + t[1] + '</button>';
     }).join('') + '</div></nav>' +
     '</div>';
+  UI.afterRender();
+};
+
+UI.afterRender = function () {
+  if (BM.Juice) BM.Juice.countUp(document.getElementById('app'));
 };
 
 UI.subTabs = function (key, items) {
@@ -118,6 +128,13 @@ UI.previewTeams = function () {
   return list;
 };
 
+UI.ballSvg = function () {
+  return '<svg class="ball" viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="bg1" cx="35%" cy="30%" r="75%">' +
+    '<stop offset="0" stop-color="#ffb066"/><stop offset="1" stop-color="#d9480f"/></radialGradient></defs>' +
+    '<circle cx="50" cy="50" r="46" fill="url(#bg1)"/><g fill="none" stroke="#3a1300" stroke-width="3.5" stroke-linecap="round">' +
+    '<path d="M4 50h92M50 4v92"/><path d="M18 17c14 14 14 52 0 66M82 17c-14 14-14 52 0 66"/></g></svg>';
+};
+
 UI.startScreen = function () {
   var hasSave = !!UI.store.get(BM.SAVE_KEY);
   var prev = UI.previewTeams();
@@ -133,7 +150,7 @@ UI.startScreen = function () {
       }).join('') + '</div>';
   };
   return '<div class="app" style="padding-bottom:24px">' +
-    '<div class="hero"><h1>Hoops <span>Manager</span> 26</h1><p>Effectifs NBA réels 2026-27, version africaine.</p></div>' +
+    '<div class="hero">' + UI.ballSvg() + '<h1>Hoops <span>Manager</span> 26</h1><p>Effectifs NBA réels 2026-27, version africaine.</p></div>' +
     '<div class="page">' +
     (hasSave ? '<div class="card"><div class="card-h"><h2>Reprendre</h2></div><button class="btn primary block" data-act="loadSave">Charger la partie sauvegardée</button></div>' : '') +
     '<div class="card" style="display:grid;gap:12px">' +
@@ -151,15 +168,15 @@ UI.startScreen = function () {
 // ==================================================================== accueil
 UI.tab_home = function () {
   var g = UI.g, me = g.teams[g.userTeam];
-  var st = BM.standings(g), pos = st.indexOf(me) + 1;
+  var confPos = BM.standings(g, me.conf).indexOf(me) + 1;
   var next = BM.nextUserFixture(g), nextHtml;
   if (next) {
     var h = g.teams[next.home], a = g.teams[next.away];
     var label = next.type === 'playoff' ? BM.ROUND_NAMES[next.round] + ' · match ' + next.game : 'Journée ' + next.round;
     var today = next.day === g.day;
-    nextHtml = '<div class="card"><div class="card-h"><h2>' + (today ? 'Match aujourd\'hui' : 'Prochain match') + '</h2><span class="small muted">' + UI.esc(BM.dateLabel(g, next.day)) + '</span></div>' +
+    nextHtml = '<div class="card hero-card"><div class="card-h"><h2>' + (today ? 'Match aujourd\'hui' : 'Prochain match') + '</h2><span class="small muted">' + UI.esc(BM.dateLabel(g, next.day)) + '</span></div>' +
       '<div class="vs"><div class="t">' + UI.teamBadge(h) + UI.esc(h.name) + '<span class="small muted">' + h.record.w + 'V-' + h.record.l + 'D</span></div>' +
-      '<div class="mid">' + label + '</div>' +
+      '<div class="mid">VS<small>' + label + '</small></div>' +
       '<div class="t">' + UI.teamBadge(a) + UI.esc(a.name) + '<span class="small muted">' + a.record.w + 'V-' + a.record.l + 'D</span></div></div>' +
       (today ? '<div style="margin-top:12px"><button class="btn primary block" data-act="continue">Aller au match</button></div>' : '') +
       '</div>';
@@ -174,10 +191,10 @@ UI.tab_home = function () {
   var icons = { board: '🏛', match: '🏀', medical: '✚', transfer: '⇄', finance: '€', info: '✉' };
   return nextHtml +
     '<div class="grid2">' +
-    '<div class="kpi"><b>' + pos + '<sup>e</sup></b><span>Classement · ' + me.record.w + 'V-' + me.record.l + 'D</span></div>' +
-    '<div class="kpi"><b>' + conf + '%</b><span>Confiance direction</span>' + UI.bar(conf) + '</div>' +
-    '<div class="kpi"><b>' + morale + '</b><span>Moral moyen</span>' + UI.bar(morale) + '</div>' +
-    '<div class="kpi"><b>' + injured + '</b><span>Blessé(s) · cohésion ' + Math.round(me.cohesion) + '</span></div>' +
+    '<div class="kpi"><b><span data-count="' + confPos + '">' + confPos + '</span><sup>e</sup></b><span>' + UI.esc(BM.CONFERENCES[me.conf]) + ' · ' + me.record.w + 'V-' + me.record.l + 'D</span></div>' +
+    '<div class="kpi"><b data-count="' + conf + '" data-suffix="%">' + conf + '%</b><span>Confiance direction</span>' + UI.bar(conf) + '</div>' +
+    '<div class="kpi"><b data-count="' + morale + '">' + morale + '</b><span>Moral moyen</span>' + UI.bar(morale) + '</div>' +
+    '<div class="kpi"><b data-count="' + injured + '">' + injured + '</b><span>Blessé(s) · cohésion ' + Math.round(me.cohesion) + '</span></div>' +
     '</div>' +
     '<div class="card"><div class="card-h"><h2>Messagerie</h2><span class="small muted">Objectif : ' + BM.OBJECTIVES[g.objective] + '</span></div>' +
     (msgs.length ? msgs.map(function (m) {
@@ -645,7 +662,7 @@ UI.actions.marketPos = function (el) { UI.marketPos = el.dataset.v; UI.render();
 // ==================================================================== club
 UI.tab_club = function () {
   var g = UI.g, me = g.teams[g.userTeam], payroll = BM.payroll(g, me);
-  var theme = document.documentElement.dataset.theme || 'auto';
+  var theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
   return '<div class="card"><div class="card-h"><h2>' + UI.esc(me.name) + '</h2>' + UI.teamBadge(me) + '</div>' +
     '<div class="grid2">' +
     '<div class="kpi"><b>' + me.rep + '</b><span>Réputation</span></div>' +
@@ -660,7 +677,8 @@ UI.tab_club = function () {
     '<div class="card" style="display:grid;gap:10px"><h2>Partie</h2>' +
     '<p class="small muted" style="margin:0">Coach : ' + UI.esc(g.managerName) + ' · sauvegarde automatique chaque jour.</p>' +
     '<div class="btn-row"><button class="btn" data-act="saveNow">Sauvegarder</button><button class="btn" data-act="exportSave">Exporter (.json)</button>' +
-    '<button class="btn" data-act="theme">Thème : ' + ({ auto: 'auto', light: 'clair', dark: 'sombre' }[theme]) + '</button></div>' +
+    '<button class="btn" data-act="theme">Thème : ' + (theme === 'light' ? 'clair' : 'arena') + '</button>' +
+    '<button class="btn" data-act="sound">Son : ' + (BM.Juice.isOn() ? 'activé' : 'coupé') + '</button></div>' +
     '<button class="btn danger" data-act="quitAsk">Quitter vers le menu</button></div>' +
     '<p class="small muted" style="text-align:center">Hoops Manager 26 · jeu original inspiré de la boucle de jeu des simulateurs de management.</p>';
 };
@@ -677,10 +695,15 @@ UI.actions.exportSave = function () {
 };
 
 UI.actions.theme = function () {
-  var cur = document.documentElement.dataset.theme || 'auto';
-  var next = { auto: 'dark', dark: 'light', light: 'auto' }[cur];
-  if (next === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = next;
+  var next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
   UI.store.set('hoops_theme', next);
+  UI.render();
+};
+
+UI.actions.sound = function () {
+  var on = BM.Juice.toggle();
+  if (on) BM.Juice.sound('coin');
   UI.render();
 };
 
@@ -692,12 +715,20 @@ UI.actions.quit = function () { UI.save(); UI.g = null; UI.closeModal(); UI.rend
 
 // ==================================================================== modale
 UI.modal = function (html) {
-  document.getElementById('modal-root').innerHTML = '<div class="modal-bg" data-act="bgClose"><div class="modal" role="dialog" aria-modal="true">' + html + '</div></div>';
+  var root = document.getElementById('modal-root');
+  var already = !!root.querySelector('.modal');
+  root.innerHTML = '<div class="modal-bg" data-act="bgClose"' + (already ? ' style="animation:none"' : '') + '><div class="modal" role="dialog" aria-modal="true"' +
+    (already ? ' style="animation:none"' : '') + '>' + html + '</div></div>';
+  if (!already && BM.Juice) BM.Juice.sound('open');
+  if (BM.Juice) BM.Juice.countUp(root);
 };
 UI.closeModal = function () { document.getElementById('modal-root').innerHTML = ''; };
 UI.actions.closeModal = function () { UI.closeModal(); };
 UI.actions.bgClose = function (el, ev) { if (ev.target === el && !UI.modalLocked) UI.closeModal(); };
 
 // ==================================================================== navigation
-UI.actions.tab = function (el) { UI.tab = el.dataset.tab; UI.render(); window.scrollTo(0, 0); };
+UI.actions.tab = function (el) {
+  if (UI.tab !== el.dataset.tab && BM.Juice) { BM.Juice.sound('nav'); BM.Juice.haptic('light'); }
+  UI.tab = el.dataset.tab; UI.render(); window.scrollTo(0, 0);
+};
 UI.actions.subtab = function (el) { UI.sub[el.dataset.key] = el.dataset.v; UI.render(); };

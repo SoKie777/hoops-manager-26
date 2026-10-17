@@ -185,6 +185,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       if (last) { made++; this.stat(p, 'ftm'); this.addPoints(side, p, 1); }
     }
     this.log(made ? 'score' : 'miss', side, this.name(p) + ' : ' + made + '/' + n + ' aux lancers francs.');
+    if (this.play) this.play.ft = { id: p.id, n: n, made: made };
     return last;
   };
 
@@ -199,11 +200,13 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (rng.chance(pO)) {
       var r = rng.weighted(O, function (p) { return Math.pow(rv(p), 2.2) * (0.7 + p.attrs.act / 40); });
       this.stat(r, 'oreb');
+      if (this.play) this.play.reb = { id: r.id, off: true };
       this.log('play', o, 'Rebond offensif de ' + this.name(r) + '.');
       this.oreb = true;
     } else {
       var dr = rng.weighted(D, function (p) { return Math.pow(rv(p), 2.2); });
       this.stat(dr, 'dreb');
+      if (this.play) this.play.reb = { id: dr.id, off: false };
       var tr = { lent: 0.05, normal: 0.1, rapide: 0.2 }[this.tac[d].pace];
       this.fast = rng.chance(tr);
       this.switchPoss();
@@ -240,6 +243,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (dur >= this.clock) dur = this.clock;
     var fast = this.fast, putback = this.oreb;
     this.fast = false; this.oreb = false;
+    this.play = { o: o, q: this.q, dur: dur, fast: fast, putback: putback, on: [this.on[0].slice(), this.on[1].slice()], kind: 'none' };
     this.tick(dur);
     if (O.length === 0 || D.length === 0) { this.switchPoss(); return; }
     var a = function (p, k) { return self.a(p, k); };
@@ -252,11 +256,14 @@ var BM = globalThis.BM = globalThis.BM || {};
     tov += (this.avgGrav(d, 'def') - 11) * 0.002;
     if (this.tac[o].pace === 'rapide') tov += 0.01;
     if (putback) tov *= 0.4;
+    this.play.handler = handler.id;
     if (rng.chance(BM.clamp(tov, 0.05, 0.26))) {
       this.stat(handler, 'tov');
+      this.play.kind = 'tov';
       if (rng.chance(0.55)) {
         var st = rng.weighted(D, function (p) { return Math.pow(a(p, 'int'), 2); });
         this.stat(st, 'stl');
+        this.play.stealer = st.id;
         this.log('play', d, 'Interception de ' + this.name(st) + ' sur ' + this.name(handler) + ' !');
         this.fast = rng.chance(0.6);
       } else {
@@ -270,6 +277,8 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (!putback && rng.chance(0.09)) {
       var fouler = rng.weighted(D, function (p) { return 22 - p.attrs.qi; });
       this.foul(d, fouler);
+      this.play.kind = 'foul';
+      this.play.fouler = fouler.id;
       if (this.teamFouls[d] > 4) {
         this.log('foul', d, 'Faute de ' + this.name(fouler) + ' (bonus) sur ' + this.name(handler) + '.');
         if (this.freeThrows(o, handler, 2)) this.switchPoss(); else this.rebound(o);
@@ -287,6 +296,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     });
     var type = fast ? (rng.chance(0.8) ? 'rim' : 'three') : putback && rng.chance(0.6) ? 'rim' : this.shotType(shooter, o, d);
     var df = this.matchup(shooter, o, D);
+    this.play.kind = 'shot'; this.play.shooter = shooter.id; this.play.type = type; this.play.made = false;
     var e = function (k) { return a(shooter, k); }, f = function (k) { return a(df, k); };
     var prob, pts = type === 'three' ? 3 : 2;
     if (type === 'rim') {
@@ -321,6 +331,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       if (rng.chance(pBlk)) {
         var blocker = rng.chance(0.65) ? df : rng.weighted(D, function (p) { return Math.pow(a(p, 'ctr'), 2); });
         this.stat(blocker, 'blk'); this.stat(shooter, 'fga');
+        this.play.blocker = blocker.id;
         this.log('play', d, 'Contre de ' + this.name(blocker) + ' sur ' + this.name(shooter) + ' !');
         this.rebound(o);
         return;
@@ -332,8 +343,10 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (fouled) {
       var fd = rng.chance(0.6) ? df : rng.pick(D);
       this.foul(d, fd);
+      this.play.fouled = true;
     }
     if (made) {
+      this.play.made = true;
       this.stat(shooter, 'fga'); this.stat(shooter, 'fgm');
       if (pts === 3) { this.stat(shooter, 'tpa'); this.stat(shooter, 'tpm'); }
       this.addPoints(o, shooter, pts);
@@ -343,6 +356,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       if (mates.length && rng.chance(astP)) {
         passer = rng.weighted(mates, function (p) { return Math.pow(a(p, 'pas'), 2.2); });
         this.stat(passer, 'ast');
+        this.play.passer = passer.id;
       }
       this.log('score', o, this.madeText(shooter, type, fast) + (passer ? ' (passe de ' + this.name(passer) + ')' : ''));
       if (fouled) {
@@ -369,7 +383,10 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (type === 'three') return r.pick([n + ' plante le tir à 3 points !', n + ' sanctionne de loin !', 'Banderille de ' + n + ' derrière l\'arc !']);
     if (type === 'mid') return r.pick([n + ' réussit son tir à mi-distance.', 'Pull-up de ' + n + ', dedans.', n + ' trouve la cible en tête de raquette.']);
     if (fast) return r.pick(['Contre-attaque conclue par ' + n + ' !', n + ' s\'envole en transition !']);
-    if (p.attrs.det >= 14 && r.chance(0.45)) return r.pick(['Dunk de ' + n + ' !', 'Smash rageur de ' + n + ' !']);
+    if (p.attrs.det >= 14 && r.chance(0.45)) {
+      if (this.play) this.play.dunk = true;
+      return r.pick(['Dunk de ' + n + ' !', 'Smash rageur de ' + n + ' !']);
+    }
     return r.pick(['Lay-up de ' + n + '.', n + ' conclut près du cercle.', n + ' marque en force sous le panier.']);
   };
 
@@ -399,6 +416,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (this.finished || this.halftimePending) return [];
     var start = this.events.length;
     this.possession();
+    if (this.play) this.play.score = this.score.slice();
     if (this.clock <= 0 && !this.finished) this.endQuarter();
     return this.events.slice(start);
   };

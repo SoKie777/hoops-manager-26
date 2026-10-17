@@ -12,14 +12,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -37,6 +37,12 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+
+      - name: Générer l'icône et l'écran de démarrage
+        run: >
+          npx -y @capacitor/assets@3.0.5 generate --android
+          --iconBackgroundColor '#07090d' --iconBackgroundColorDark '#07090d'
+          --splashBackgroundColor '#07090d' --splashBackgroundColorDark '#07090d'
 
       - name: Compiler l'APK
         working-directory: android

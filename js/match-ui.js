@@ -56,25 +56,47 @@ UI.actions.playLive = function () {
 };
 
 // ==================================================================== direct
-UI.SPEEDS = { 1: 1100, 2: 450, 4: 110 };
+// Durée d'une possession à l'écran (ms) selon la vitesse.
+UI.SPEEDS = { 1: 2600, 2: 1300, 4: 480 };
 
-UI.schedule = function () {
+UI.schedule = function (delay) {
   var L = UI.live;
   clearTimeout(L.timer);
+  UI.flushPending();
   if (!L.playing || L.m.finished) return;
-  L.timer = setTimeout(UI.tickMatch, UI.SPEEDS[L.speed]);
+  L.timer = setTimeout(UI.tickMatch, delay === undefined ? 120 : delay);
 };
 
+// Joue une possession : la vue 2D l'anime, le score et le commentaire tombent quand le ballon arrive.
 UI.tickMatch = function () {
   var L = UI.live;
   if (!L || !L.playing) return;
-  var evs = L.m.step();
-  UI.pushEvents(evs);
-  UI.renderScore();
-  if (L.m.finished) { UI.finishMatch(); return; }
-  if (L.m.halftimePending) { L.playing = false; UI.renderControls(); UI.openPanel('talk'); return; }
-  if (L.panel === 'subs') UI.renderPanel();
-  UI.schedule();
+  var T = UI.SPEEDS[L.speed];
+  var before = L.m.score.slice();
+  var evs = L.m.step(), play = L.m.play;
+  if (L.court) L.court.animate(play, T * 0.94);
+  var impact = play && play.kind === 'shot' ? 0.8 : 0.55;
+  L.pending = { evs: evs, before: before };
+  L.timer = setTimeout(function () {
+    UI.flushPending();
+    if (L.m.finished) { L.timer = setTimeout(UI.finishMatch, 900); return; }
+    if (L.m.halftimePending) { L.playing = false; UI.renderControls(); UI.openPanel('talk'); return; }
+    if (L.panel === 'subs') UI.renderPanel();
+    if (L.playing) L.timer = setTimeout(UI.tickMatch, T * (1 - impact));
+  }, T * impact);
+};
+
+UI.flushPending = function () {
+  var L = UI.live;
+  if (!L || !L.pending) return;
+  var p = L.pending;
+  L.pending = null;
+  UI.pushEvents(p.evs);
+  var bump = [L.m.score[0] > p.before[0], L.m.score[1] > p.before[1]];
+  UI.renderScore(bump);
+  if (p.evs.some(function (e) { return e.type === 'quarter'; })) { BM.Juice.sound('buzzer'); BM.Juice.haptic('medium'); }
+  var u = L.m.user;
+  if (u >= 0 && bump[u] && L.m.score[u] - p.before[u] >= 3) BM.Juice.haptic('light');
 };
 
 UI.clockLabel = function (q, clock) {
@@ -87,20 +109,23 @@ UI.renderMatch = function () {
   document.getElementById('modal-root').innerHTML =
     '<div class="match"><div class="inner">' +
     '<div class="scoreboard" id="m-score"></div>' +
+    '<div class="court-wrap"><canvas id="m-court" aria-label="Vue 2D du terrain"></canvas></div>' +
     '<div class="feed" id="m-feed"></div>' +
     '<div class="controls" id="m-ctrl"></div>' +
     '</div><div id="m-panel"></div></div>';
+  L.court = new BM.Court(document.getElementById('m-court'), m);
   UI.renderScore();
   UI.pushEvents(m.events);
   UI.renderControls();
 };
 
-UI.renderScore = function () {
+UI.renderScore = function (bump) {
   var m = UI.live.m, t = m.side;
   var el = document.getElementById('m-score');
   if (!el) return;
+  var sc = function (i) { return '<i' + (bump && bump[i] ? ' class="bump"' : '') + '>' + m.score[i] + '</i>'; };
   el.innerHTML = '<div class="sb"><div class="t">' + UI.teamBadge(t[0], true) + '<span>' + UI.esc(t[0].short) + '</span></div>' +
-    '<div><div class="score">' + m.score[0] + ' – ' + m.score[1] + '</div><div class="clock">' + (m.finished ? 'Terminé' : UI.clockLabel(m.q, Math.max(0, Math.round(m.clock)))) +
+    '<div><div class="score">' + sc(0) + ' – ' + sc(1) + '</div><div class="clock">' + (m.finished ? '<b>TERMINÉ</b>' : '<b>' + UI.clockLabel(m.q, Math.max(0, Math.round(m.clock))) + '</b>') +
     ' · fautes ' + m.teamFouls[0] + '/' + m.teamFouls[1] + '</div></div>' +
     '<div class="t away"><span>' + UI.esc(t[1].short) + '</span>' + UI.teamBadge(t[1], true) + '</div></div>';
 };
@@ -161,6 +186,7 @@ UI.actions.mTimeout = function () {
 UI.actions.mSimEnd = function () {
   var L = UI.live;
   clearTimeout(L.timer);
+  UI.flushPending();
   L.playing = false;
   var start = L.m.events.length;
   L.m.simulateAll();
@@ -172,7 +198,7 @@ UI.actions.mSimEnd = function () {
 UI.openPanel = function (kind) {
   var L = UI.live;
   L.panel = kind;
-  if (kind !== 'talk' && L.playing) { L.playing = false; UI.renderControls(); clearTimeout(L.timer); }
+  if (kind !== 'talk' && L.playing) { L.playing = false; clearTimeout(L.timer); UI.flushPending(); UI.renderControls(); }
   UI.renderPanel();
 };
 
@@ -266,12 +292,16 @@ UI.changes.mAuto = function (el) { UI.live.m.auto[UI.live.m.user] = el.checked; 
 UI.finishMatch = function () {
   var L = UI.live, g = UI.g, m = L.m, fx = L.fx;
   clearTimeout(L.timer);
+  if (L.court) { L.court.destroy(); L.court = null; }
   BM.applyResult(g, fx, m);
   UI.save();
   var u = m.user, won = m.score[u] > m.score[1 - u];
   var mvp = m.mvp ? g.players[m.mvp] : null;
   UI.modalLocked = true;
-  UI.modal('<div class="modal-h"><h2>' + (won ? 'Victoire !' : 'Défaite') + '</h2></div>' +
+  BM.Juice.sound(won ? 'win' : 'lose');
+  BM.Juice.haptic(won ? 'heavy' : 'medium');
+  if (won) setTimeout(function () { BM.Juice.confetti([g.teams[g.userTeam].color, '#ffd43b', '#ffffff', '#ff7a1a']); }, 250);
+  UI.modal('<div class="result-banner"><h2 class="' + (won ? 'win' : 'loss') + '">' + (won ? 'Victoire' : 'Défaite') + '</h2></div>' +
     '<div class="card"><div class="sb"><div class="t">' + UI.teamBadge(m.side[0], true) + UI.esc(m.side[0].short) + '</div>' +
     '<div class="score">' + m.score[0] + ' – ' + m.score[1] + '</div><div class="t away">' + UI.esc(m.side[1].short) + UI.teamBadge(m.side[1], true) + '</div></div>' +
     (mvp ? '<p class="small" style="text-align:center;margin:8px 0 0">Homme du match : <b>' + UI.esc(BM.fullName(mvp)) + '</b> (' + m.ratings[mvp.id].toFixed(1) + ')</p>' : '') + '</div>' +
