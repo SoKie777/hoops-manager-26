@@ -690,5 +690,10 @@ BM.deserialize = function (json) {
   var g = JSON.parse(json);
   if (!g || !g.teams || !g.players) throw new Error('Sauvegarde invalide');
   g.rng = new BM.RNG(g.rng.s);
+  // Migration : abréviations par surnom d'équipe (WAR, THU...).
+  if (BM.NBA) g.teams.forEach(function (t) {
+    var d = BM.NBA.teams.find(function (x) { return x.code === t.code; });
+    if (d) t.short = d.short;
+  });
   return g;
 };

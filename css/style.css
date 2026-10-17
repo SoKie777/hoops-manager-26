@@ -232,6 +232,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tag.bad { background: var(--bad); color: #fff; }
 .tag.warn { background: var(--warn); color: #1a1300; }
 .tag.good { background: var(--good); color: #062b14; }
+.tag.fire { background: linear-gradient(135deg, #ffd43b, #ff4d00); color: #2b0d00; box-shadow: 0 0 10px rgba(255, 90, 0, 0.55); }
+.mom { position: relative; display: flex; height: 8px; margin: 8px 6px 0; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
+.mom span { height: 100%; transition: width 0.6s var(--out); opacity: 0.85; }
+.mom span.hot { opacity: 1; animation: momglow 0.8s ease-in-out infinite alternate; }
+.mom em { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-style: normal; font-size: 7px; font-weight: 800; letter-spacing: 0.25em; color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); }
+@keyframes momglow { from { filter: brightness(1); } to { filter: brightness(1.6) saturate(1.3); } }
+.ev.momentum .tx, .ev.hot .tx { font-weight: 800; color: var(--accent-2); }
 .tag.legend { background: linear-gradient(135deg, #ffe066, #f59f00); color: #2b1700; box-shadow: 0 0 10px rgba(255, 200, 0, 0.45); }
 
 /* ---------------- messages */
@@ -341,6 +348,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .ev.injury .tx { color: var(--bad); }
 .ev .side { width: 4px; border-radius: 2px; }
 .controls { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface-solid) 85%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--border); display: grid; gap: 8px; }
+.controls .btn-row { flex-wrap: nowrap; gap: 6px; }
+.controls .btn { padding: 10px 6px; font-size: 13px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.controls .seg { min-width: 0; }
 .court { display: grid; gap: 4px; }
 .court .pl { display: grid; grid-template-columns: 36px 1fr 60px 36px; gap: 8px; align-items: center; font-size: 13px; padding: 6px 4px; border-bottom: 1px solid var(--border); border-radius: 8px; transition: background 0.2s; }
 .court .pl.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }

@@ -380,6 +380,13 @@ var BM = globalThis.BM = globalThis.BM || {};
         x.strokeStyle = '#ffd43b'; x.lineWidth = Math.max(2, s * 0.35);
         x.beginPath(); x.arc(P(p.x), P(p.y), r + s * 0.6, 0, Math.PI * 2); x.stroke();
       }
+      // Joueur en feu : halo orange pulsé.
+      if (m.isHot(id)) {
+        var pulse = 0.6 + 0.4 * Math.sin(now / 140);
+        x.save(); x.shadowColor = '#ff6a00'; x.shadowBlur = s * 3 * pulse;
+        x.fillStyle = 'rgba(255,106,0,' + (0.35 * pulse) + ')';
+        x.beginPath(); x.arc(P(p.x), P(p.y), r + s * 1.2, 0, Math.PI * 2); x.fill(); x.restore();
+      }
       x.beginPath(); x.arc(P(p.x), P(p.y), r, 0, Math.PI * 2);
       if (side === 0) { x.fillStyle = col; x.fill(); x.strokeStyle = '#fff'; }
       else { x.fillStyle = '#fff'; x.fill(); x.strokeStyle = col; }
@@ -388,6 +395,12 @@ var BM = globalThis.BM = globalThis.BM || {};
       x.font = '800 ' + Math.round(2.1 * s) + 'px "Barlow Condensed", system-ui, sans-serif';
       x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillText(pl.last.charAt(0) + pl.first.charAt(0), P(p.x), P(p.y) + s * 0.1);
+      // 1re option choisie par le coach : étoile dorée.
+      if (m.firstOpt[side] === id) {
+        x.font = '800 ' + Math.round(2.4 * s) + 'px system-ui, sans-serif';
+        x.fillStyle = '#ffd43b'; x.textAlign = 'center';
+        x.fillText('★', P(p.x) + r, P(p.y) - r);
+      }
       if (id === holder) {
         x.font = '700 ' + Math.round(1.9 * s) + 'px system-ui, sans-serif';
         x.fillStyle = '#fff'; x.strokeStyle = 'rgba(0,0,0,0.6)'; x.lineWidth = s * 0.4;

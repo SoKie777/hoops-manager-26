@@ -32,6 +32,9 @@ var BM = globalThis.BM = globalThis.BM || {};
       r.forEach(function (p) { self.en[p.id] = p.condition; self.box[p.id] = emptyBox(); self.lastSub[p.id] = 0; self.grav[p.id] = BM.gravity(p); });
     });
     this.on = [this.startingFive(0), this.startingFive(1)];
+    this.mom = [50, 50];          // jauge de momentum (0-100) par équipe
+    this.heat = {};               // série en cours de chaque joueur (≥ 3 : en feu)
+    this.firstOpt = [null, null]; // 1re option offensive choisie en direct par le coach
     this.firstPoss = this.rng.chance(0.5) ? 0 : 1;
     this.poss = this.firstPoss;
     this.oreb = false; this.fast = false;
@@ -233,6 +236,50 @@ var BM = globalThis.BM = globalThis.BM || {};
     return Ds[Math.min(O.indexOf(sh), Ds.length - 1)] || Ds[0];
   };
 
+  // ---------------------------------------------------------------- momentum, séries, mismatchs
+  Match.prototype.isHot = function (pid) { return (this.heat[pid] || 0) >= 3; };
+
+  // Avantage d'un attaquant sur son défenseur direct : au poste (taille, puissance) ou à l'extérieur (tir, vitesse).
+  Match.prototype.mismatch = function (side, pid) {
+    var self = this, p = this.p(pid), D = this.lineup(1 - side);
+    if (!D.length) return { val: 0, kind: 'ext', vs: null };
+    var d = this.matchup(p, side, D), a = function (x, k) { return self.a(x, k); };
+    var inside = (a(p, 'fin') * 0.6 + a(p, 'for') * 0.25 + a(p, 'det') * 0.15) - (a(d, 'defI') * 0.5 + a(d, 'ctr') * 0.3 + a(d, 'for') * 0.2) + (p.height - d.height) / 4;
+    var outside = (Math.max(a(p, 'tir3'), a(p, 'tirMi')) * 0.7 + a(p, 'drb') * 0.3) - (a(d, 'defE') * 0.6 + a(d, 'vit') * 0.4) + (d.height - p.height) / 8;
+    var inn = inside >= outside;
+    // Recentré (-3) : on garde le meilleur des deux angles, ce qui biaise vers le positif.
+    return { val: Math.round(Math.max(inside, outside) - 3), kind: inn ? 'int' : 'ext', vs: d.id };
+  };
+
+  Match.prototype.addMomentum = function (side, n) {
+    var before = this.mom[side];
+    this.mom[side] = BM.clamp(this.mom[side] + n, 0, 100);
+    this.momSaid = this.momSaid || [-999, -999];
+    if (before < 80 && this.mom[side] >= 80 && this.elapsed - this.momSaid[side] > 90) {
+      this.momSaid[side] = this.elapsed;
+      this.log('momentum', side, 'Momentum ' + this.side[side].name + ' ! La salle s\'enflamme.');
+    }
+  };
+
+  Match.prototype.afterShot = function (o, shooter, made, pts) {
+    var d = 1 - o, h = this.heat[shooter.id] || 0;
+    if (made) {
+      this.heat[shooter.id] = h + (pts === 3 ? 1.5 : 1);
+      if (h < 3 && this.heat[shooter.id] >= 3) this.log('hot', o, BM.shortName(shooter) + ' est en feu !');
+      this.addMomentum(o, pts === 3 ? 8 : 6);
+      this.addMomentum(d, -4);
+    } else {
+      this.heat[shooter.id] = Math.max(0, h - 1.5);
+      this.addMomentum(d, 3);
+    }
+  };
+
+  Match.prototype.setFirstOption = function (side, pid) {
+    this.firstOpt[side] = pid || null;
+    if (pid) this.log('info', side, 'Consigne : jouer pour ' + BM.shortName(this.p(pid)) + ' en 1re option.');
+    else this.log('info', side, 'Consigne : retour au jeu collectif.');
+  };
+
   // ---------------------------------------------------------------- une possession
   Match.prototype.possession = function () {
     var self = this, rng = this.rng, o = this.poss, d = 1 - o;
@@ -243,6 +290,8 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (dur >= this.clock) dur = this.clock;
     var fast = this.fast, putback = this.oreb;
     this.fast = false; this.oreb = false;
+    [0, 1].forEach(function (i) { self.mom[i] += (50 - self.mom[i]) * 0.04; });
+    var fo = this.firstOpt[o] && this.on[o].indexOf(this.firstOpt[o]) >= 0 && !this.out[this.firstOpt[o]] ? this.firstOpt[o] : null;
     this.play = { o: o, q: this.q, dur: dur, fast: fast, putback: putback, on: [this.on[0].slice(), this.on[1].slice()], kind: 'none' };
     this.tick(dur);
     if (O.length === 0 || D.length === 0) { this.switchPoss(); return; }
@@ -250,6 +299,7 @@ var BM = globalThis.BM = globalThis.BM || {};
 
     // Perte de balle.
     var handler = rng.weighted(O, function (p) { return Math.pow(a(p, 'drb') + a(p, 'pas'), 2); });
+    if (fo && rng.chance(0.5)) handler = this.p(fo);
     var defSteal = this.avg(D, function (p) { return a(p, 'int') * 0.6 + a(p, 'defE') * 0.4; });
     var tov = 0.13 + 0.006 * (defSteal - (a(handler, 'drb') * 0.5 + a(handler, 'pas') * 0.3 + a(handler, 'qi') * 0.2));
     if (this.tac[d].defense === 'press') tov += 0.035;
@@ -264,6 +314,7 @@ var BM = globalThis.BM = globalThis.BM || {};
         var st = rng.weighted(D, function (p) { return Math.pow(a(p, 'int'), 2); });
         this.stat(st, 'stl');
         this.play.stealer = st.id;
+        this.addMomentum(d, 6); this.addMomentum(o, -3);
         this.log('play', d, 'Interception de ' + this.name(st) + ' sur ' + this.name(handler) + ' !');
         this.fast = rng.chance(0.6);
       } else {
@@ -292,9 +343,12 @@ var BM = globalThis.BM = globalThis.BM || {};
     // Tir.
     var shooter = rng.weighted(O, function (p) {
       var u = a(p, 'fin') * 0.35 + a(p, 'tirMi') * 0.2 + a(p, 'tir3') * 0.3 + a(p, 'drb') * 0.15;
-      return Math.pow(u, 2.2) * (0.7 + self.grav[p.id].on / 30);
+      return Math.pow(u, 2.2) * (0.7 + self.grav[p.id].on / 30) * (p.id === fo ? 2.2 : 1);
     });
+    var mm = shooter.id === fo ? this.mismatch(o, fo) : null;
     var type = fast ? (rng.chance(0.8) ? 'rim' : 'three') : putback && rng.chance(0.6) ? 'rim' : this.shotType(shooter, o, d);
+    // La 1re option attaque son mismatch : poste bas s'il est intérieur.
+    if (mm && mm.val >= 2 && mm.kind === 'int' && !fast && rng.chance(0.6)) type = 'rim';
     var df = this.matchup(shooter, o, D);
     this.play.kind = 'shot'; this.play.shooter = shooter.id; this.play.type = type; this.play.made = false;
     var e = function (k) { return a(shooter, k); }, f = function (k) { return a(df, k); };
@@ -322,7 +376,17 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (o === 0) prob += 0.01;
     prob += ((this.side[o].cohesion || 50) - (this.side[d].cohesion || 50)) / 800; // cohésion relative : pas d'inflation globale
     if (this.clutch()) prob += (shooter.attrs.sf - 10) * 0.004;
-    prob = BM.clamp(prob, 0.12, 0.85);
+    // Momentum d'équipe (relatif), main chaude, et récompense du coach qui choisit la bonne 1re option.
+    prob += (this.mom[o] - this.mom[d]) / 2500;
+    var hot = this.isHot(shooter.id);
+    if (hot) prob += 0.015;
+    if (mm) {
+      var fav = mm.val >= 2;
+      prob += hot && fav ? Math.min(0.07, 0.035 + 0.008 * mm.val) : hot ? 0.02 : fav ? 0.01 : -0.01;
+      this.play.firstOption = true;
+    }
+    this.play.hot = hot;
+    prob = BM.clamp(prob, 0.12, 0.88);
 
     // Contre.
     if (type === 'rim') {
@@ -332,6 +396,8 @@ var BM = globalThis.BM = globalThis.BM || {};
         var blocker = rng.chance(0.65) ? df : rng.weighted(D, function (p) { return Math.pow(a(p, 'ctr'), 2); });
         this.stat(blocker, 'blk'); this.stat(shooter, 'fga');
         this.play.blocker = blocker.id;
+        this.afterShot(o, shooter, false, pts);
+        this.addMomentum(d, 4);
         this.log('play', d, 'Contre de ' + this.name(blocker) + ' sur ' + this.name(shooter) + ' !');
         this.rebound(o);
         return;
@@ -345,6 +411,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       this.foul(d, fd);
       this.play.fouled = true;
     }
+    this.afterShot(o, shooter, made, pts);
     if (made) {
       this.play.made = true;
       this.stat(shooter, 'fga'); this.stat(shooter, 'fgm');
@@ -437,6 +504,8 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (this.timeouts[i] <= 0 || this.finished) return false;
     this.timeouts[i]--;
     this.on[i].forEach(function (id) { self.en[id] = Math.min(100, self.en[id] + 5); });
+    this.mom[1 - i] = Math.min(this.mom[1 - i], Math.max(35, this.mom[1 - i] - 25));
+    this.addMomentum(i, 5);
     this.log('info', i, 'Temps mort ' + this.side[i].name + '.');
     return true;
   };

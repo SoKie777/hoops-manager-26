@@ -95,6 +95,7 @@ UI.flushPending = function () {
   var bump = [L.m.score[0] > p.before[0], L.m.score[1] > p.before[1]];
   UI.renderScore(bump);
   if (p.evs.some(function (e) { return e.type === 'quarter'; })) { BM.Juice.sound('buzzer'); BM.Juice.haptic('medium'); }
+  if (p.evs.some(function (e) { return e.type === 'momentum' || e.type === 'hot'; })) { BM.Juice.sound('cheer'); BM.Juice.haptic('medium'); }
   var u = L.m.user;
   if (u >= 0 && bump[u] && L.m.score[u] - p.before[u] >= 3) BM.Juice.haptic('light');
 };
@@ -127,7 +128,16 @@ UI.renderScore = function (bump) {
   el.innerHTML = '<div class="sb"><div class="t">' + UI.teamBadge(t[0], true) + '<span>' + UI.esc(t[0].short) + '</span></div>' +
     '<div><div class="score">' + sc(0) + ' – ' + sc(1) + '</div><div class="clock">' + (m.finished ? '<b>TERMINÉ</b>' : '<b>' + UI.clockLabel(m.q, Math.max(0, Math.round(m.clock))) + '</b>') +
     ' · fautes ' + m.teamFouls[0] + '/' + m.teamFouls[1] + '</div></div>' +
-    '<div class="t away"><span>' + UI.esc(t[1].short) + '</span>' + UI.teamBadge(t[1], true) + '</div></div>';
+    '<div class="t away"><span>' + UI.esc(t[1].short) + '</span>' + UI.teamBadge(t[1], true) + '</div></div>' + UI.momentumBar(m);
+};
+
+// Jauge de momentum : chaque équipe pousse depuis son côté, éclat quand elle dépasse 80.
+UI.momentumBar = function (m) {
+  var a = m.mom[0], b = m.mom[1], tot = Math.max(1, a + b), share = a / tot * 100;
+  var glow = function (v) { return v >= 80 ? ' hot' : ''; };
+  return '<div class="mom" title="Momentum"><span class="mom-l' + glow(a) + '" style="width:' + share.toFixed(1) + '%;background:' + m.side[0].color + '"></span>' +
+    '<span class="mom-r' + glow(b) + '" style="width:' + (100 - share).toFixed(1) + '%;background:' + m.side[1].color + '"></span>' +
+    '<em>MOMENTUM</em></div>';
 };
 
 UI.pushEvents = function (evs) {
@@ -148,15 +158,17 @@ UI.renderControls = function () {
   var el = document.getElementById('m-ctrl');
   if (!el) return;
   el.innerHTML = '<div class="btn-row" style="flex-wrap:nowrap">' +
-    '<button class="btn" data-act="mPlay" style="min-width:76px">' + (L.playing ? '⏸ Pause' : '▶ Jouer') + '</button>' +
+    '<button class="btn" data-act="mPlay" style="flex:none;width:84px">' + (L.playing ? '⏸ Pause' : '▶ Jouer') + '</button>' +
     '<div class="seg" style="flex:1">' + [1, 2, 4].map(function (s) {
       return '<button data-act="mSpeed" data-v="' + s + '" class="' + (L.speed === s ? 'on' : '') + '">x' + s + '</button>';
     }).join('') + '</div>' +
-    '<button class="btn" data-act="mSimEnd" title="Simuler la fin du match">⏭</button></div>' +
+    '<button class="btn" data-act="mSimEnd" title="Simuler la fin du match" style="flex:none;width:44px">⏭</button></div>' +
     '<div class="btn-row" style="flex-wrap:nowrap">' +
-    '<button class="btn" style="flex:1" data-act="mTimeout"' + (m.timeouts[u] > 0 ? '' : ' disabled') + '>Temps mort (' + m.timeouts[u] + ')</button>' +
-    '<button class="btn" style="flex:1" data-act="mPanel" data-v="subs">Changements</button>' +
-    '<button class="btn" style="flex:1" data-act="mPanel" data-v="tactic">Tactique</button></div>';
+    '<button class="btn" style="flex:1" data-act="mTimeout"' + (m.timeouts[u] > 0 ? '' : ' disabled') + '>T. mort (' + m.timeouts[u] + ')</button>' +
+    '<button class="btn" style="flex:1" data-act="mPanel" data-v="subs">Changer</button>' +
+    '<button class="btn" style="flex:1" data-act="mPanel" data-v="tactic">Tactique</button>' +
+    '<button class="btn' + (m.firstOpt[u] ? ' primary' : '') + '" style="flex:1.2" data-act="mPanel" data-v="option">★ ' +
+    (m.firstOpt[u] ? UI.esc(m.p(m.firstOpt[u]).last) : '1re option') + '</button></div>';
 };
 
 UI.actions.mPlay = function () {
@@ -222,6 +234,20 @@ UI.renderPanel = function () {
       '<div style="display:grid;gap:8px">' + BM.TEAM_TALKS.map(function (t) {
         return '<button class="btn block" data-act="mTalk" data-v="' + t.v + '">' + t.l + '</button>';
       }).join('') + '</div>';
+  } else if (L.panel === 'option') {
+    var cur = m.firstOpt[u];
+    body = '<div class="modal-h"><h2>1re option offensive</h2><button class="btn sm x" data-act="mClosePanel">Fermer</button></div>' +
+      '<p class="hint" style="margin:0">Un joueur <b>en feu 🔥</b> avec un <b>mismatch favorable</b> (+2 ou plus) marque beaucoup plus. Le bonus ne vaut que si vous suivez le match.</p>' +
+      '<div class="court">' + m.on[u].map(function (id) {
+        var p = m.p(id), mm = m.mismatch(u, id), vs = mm.vs ? m.p(mm.vs) : null, hot = m.isHot(id), b = m.box[id];
+        var cls = mm.val >= 2 ? 'good' : mm.val <= -2 ? 'bad' : '';
+        return '<div class="pl opt' + (cur === id ? ' sel' : '') + '" data-act="mOption" data-id="' + id + '" style="cursor:pointer;grid-template-columns:36px 1fr auto">' +
+          '<span class="pos">' + p.pos + '</span>' +
+          '<span><b>' + UI.esc(BM.shortName(p)) + '</b>' + (hot ? ' <span class="tag fire">🔥 En feu</span>' : '') +
+          '<br><span class="muted small">' + b.pts + ' pts · vs ' + (vs ? UI.esc(BM.shortName(vs)) : '-') + ' · ' + (mm.kind === 'int' ? 'poste bas' : 'extérieur') + '</span></span>' +
+          '<span class="tag ' + cls + '" style="font-size:13px">' + (mm.val > 0 ? '+' : '') + mm.val + '</span></div>';
+      }).join('') + '</div>' +
+      '<button class="btn block" data-act="mOption" data-id="">Jeu collectif (aucune option)</button>';
   } else if (L.panel === 'tactic') {
     var t = m.tac[u], O = BM.TACTIC_OPTIONS;
     var seg = function (f) {
@@ -234,7 +260,8 @@ UI.renderPanel = function () {
     var row = function (p, onCourt) {
       var b = m.box[p.id], en = Math.round(m.en[p.id]);
       var sel = L.sel === p.id ? ' sel' : '';
-      var tags = (m.out[p.id] ? '<span class="tag bad">' + (p.injury > 0 ? 'Blessé' : '5 fautes') + '</span>' : '') + (b.pf >= 3 && !m.out[p.id] ? '<span class="tag warn">' + b.pf + ' f.</span>' : '');
+      var tags = (m.out[p.id] ? '<span class="tag bad">' + (p.injury > 0 ? 'Blessé' : BM.FOUL_OUT + ' fautes') + '</span>' : '') + (b.pf >= 3 && !m.out[p.id] ? '<span class="tag warn">' + b.pf + ' f.</span>' : '') +
+        (m.isHot(p.id) ? '<span class="tag fire">🔥</span>' : '');
       return '<div class="pl' + sel + '" data-act="mSel" data-id="' + p.id + '" data-on="' + (onCourt ? 1 : 0) + '" style="cursor:pointer">' +
         '<span class="pos">' + p.pos + '</span><span>' + UI.esc(BM.shortName(p)) + tags + ' <span class="muted small">' + b.pts + ' pts · ' + Math.round(b.sec / 60) + ' min</span></span>' +
         UI.bar(en) + '<b class="num small">' + en + '</b></div>';
@@ -261,6 +288,17 @@ UI.actions.mTalk = function (el) {
   L.playing = true;
   UI.renderControls();
   UI.schedule();
+};
+
+UI.actions.mOption = function (el) {
+  var L = UI.live, m = L.m, id = el.dataset.id ? +el.dataset.id : null;
+  m.setFirstOption(m.user, id);
+  UI.pushEvents(m.events.slice(-1));
+  BM.Juice.haptic('medium');
+  L.panel = null;
+  document.getElementById('m-panel').innerHTML = '';
+  UI.renderControls();
+  UI.toast(id ? BM.shortName(m.p(id)) + ' devient la 1re option.' : 'Retour au jeu collectif.');
 };
 
 UI.actions.mTactic = function (el) {
