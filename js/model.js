@@ -140,7 +140,7 @@ BM.payroll = function (g, team) {
 };
 
 BM.availablePlayers = function (g, team) {
-  return BM.roster(g, team).filter(function (p) { return p.injury <= 0; });
+  return BM.roster(g, team).filter(function (p) { return p.injury <= 0 && !p.gleague; });
 };
 
 // ==================================================================== gravité

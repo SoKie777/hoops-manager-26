@@ -2,7 +2,7 @@
 // Lancement : node test/sim.test.js
 var path = require('path');
 var assert = require('assert');
-['rng', 'data', 'nba-data', 'model', 'tactics', 'engine', 'league'].forEach(function (f) {
+['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'engine', 'league'].forEach(function (f) {
   require(path.join(__dirname, '..', 'js', f + '.js'));
 });
 var BM = globalThis.BM;

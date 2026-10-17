@@ -48,6 +48,7 @@ BM.newGame = function (opts) {
   });
   BM.setObjective(g);
   g.board = { confidence: 60 };
+  Object.keys(g.players).forEach(function (id) { g.players[id].seasonStartOvr = BM.ovrRaw(g.players[id]); });
   BM.scheduleSeason(g);
   var team = g.teams[g.userTeam];
   BM.addMessage(g, 'Bienvenue à ' + team.name, 'La direction vous souhaite la bienvenue, ' + g.managerName + '.\n\nObjectif fixé : ' +
@@ -311,12 +312,7 @@ BM.train = function (g, team, plan, matchDay) {
     p.morale = Math.round(BM.clamp(p.morale, 0, 100) * 2) / 2;
     if (rest || matchDay) return;
 
-    var cur = BM.ovrRaw(p), gap = p.pot - cur;
-    if (gap > 0 && p.age <= 29) {
-      var ageF = p.age <= 20 ? 1.4 : p.age <= 23 ? 1.1 : p.age <= 26 ? 0.7 : 0.35;
-      var chance = 0.035 * ageF * inten.prog * BM.clamp(gap / 3, 0.3, 1.5) * (0.8 + p.attrs.act / 50);
-      if (rng.chance(chance)) BM.improve(g, p, focus.attrs);
-    }
+    BM.devProgress(g, team, p, focus.attrs, inten);
     if (p.age >= 31 && rng.chance(0.004 * (p.age - 30))) {
       var k = rng.pick(['vit', 'det', 'end', 'for']);
       p.attrs[k] = Math.max(1, p.attrs[k] - 1);
@@ -327,6 +323,7 @@ BM.train = function (g, team, plan, matchDay) {
       if (team.id === g.userTeam) BM.addMessage(g, 'Blessure : ' + BM.fullName(p), 'Blessé à l\'entraînement, indisponible environ ' + p.injury + ' jours.', 'medical');
     }
   });
+  BM.devDaily(g, team, matchDay);
   BM.growFamiliarity(team, matchDay ? 0.8 : rest ? 0 : focus.v === 'tactique' ? 1.6 : 0.5);
   if (!rest && !matchDay && focus.v === 'tactique') team.cohesion = Math.min(100, team.cohesion + 1.5);
   else if (!matchDay) team.cohesion = Math.min(100, team.cohesion + 0.3);
@@ -524,6 +521,7 @@ BM.startNewSeason = function (g) {
     if (t.id !== g.userTeam) { BM.autoTactics(g, t); BM.aiTacticStyle(g, t); }
     else BM.cleanTactics(g, t);
   });
+  Object.keys(g.players).forEach(function (id) { g.players[id].seasonStartOvr = BM.ovrRaw(g.players[id]); });
   BM.addMessage(g, 'Saison ' + g.season + ' : nouvel objectif', 'La direction attend de vous : ' + BM.OBJECTIVES[g.objective] + '.', 'board');
 };
 
@@ -700,6 +698,7 @@ BM.deserialize = function (json) {
   if (!g || !g.teams || !g.players) throw new Error('Sauvegarde invalide');
   g.rng = new BM.RNG(g.rng.s);
   g.teams.forEach(function (t) { BM.migrateTactics(g, t); });
+  Object.keys(g.players).forEach(function (id) { var p = g.players[id]; if (p.seasonStartOvr === undefined) p.seasonStartOvr = BM.ovrRaw(p); });
   // Migration : abréviations par surnom d'équipe (WAR, THU...).
   if (BM.NBA) g.teams.forEach(function (t) {
     var d = BM.NBA.teams.find(function (x) { return x.code === t.code; });

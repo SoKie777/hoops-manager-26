@@ -191,7 +191,7 @@ UI.tab_home = function () {
   var injured = roster.filter(function (p) { return p.injury > 0; }).length;
   var conf = g.board.confidence;
   var msgs = g.inbox.slice(0, 20);
-  var icons = { board: '🏛', match: '🏀', medical: '✚', transfer: '⇄', finance: '€', info: '✉' };
+  var icons = { board: '🏛', match: '🏀', medical: '✚', transfer: '⇄', finance: '$', info: '✉', dev: '📈', scout: '🔭', media: '🎤', dyn: '👥' };
   return nextHtml +
     '<div class="grid2">' +
     '<div class="kpi"><b><span data-count="' + confPos + '">' + confPos + '</span><sup>e</sup></b><span>' + UI.esc(BM.CONFERENCES[me.conf]) + ' · ' + me.record.w + 'V-' + me.record.l + 'D</span></div>' +
@@ -271,6 +271,14 @@ UI.sortPlayers = function (list) {
 };
 
 UI.tab_squad = function () {
+  UI.sub.squad = UI.sub.squad || 'list';
+  var tabs = UI.subTabs('squad', UI.SQUAD_TABS);
+  if (UI.sub.squad !== 'list') return tabs + UI['squad_' + UI.sub.squad]();
+  return tabs + UI.squad_list();
+};
+UI.SQUAD_TABS = [['list', 'Effectif'], ['dev', 'Développement']];
+
+UI.squad_list = function () {
   var g = UI.g, me = g.teams[g.userTeam];
   var list = UI.sortPlayers(BM.roster(g, me));
   return '<div class="card"><div class="card-h"><h2>Effectif (' + list.length + '/' + BM.ROSTER_MAX + ')</h2><span class="small muted">Masse salariale ' + BM.money(BM.payroll(g, me)) + ' / ' + BM.money(me.wageBudget) + '</span></div>' +
@@ -337,7 +345,7 @@ UI.showPlayer = function (id) {
     '<div class="kpi"><b>' + BM.money(p.contract.salary) + '</b><span>' + p.contract.years + ' saison(s) restante(s) · valeur ' + BM.money(BM.playerValue(p)) + '</span></div>' +
     '<div class="kpi"><b>' + Math.round(p.condition) + '%</b><span>Condition physique' + (p.injury > 0 ? ' · blessé ' + p.injury + ' j' : '') + '</span>' + UI.bar(p.condition) + '</div>' +
     '<div class="kpi"><b>' + Math.round(p.morale) + '</b><span>Moral · forme ' + UI.avgForm(p) + '</span>' + UI.bar(p.morale) + '</div>' +
-    '</div>' + progress + UI.gravityCard(p) +
+    '</div>' + progress + (mine ? UI.devCard(p) : '') + UI.gravityCard(p) +
     '<div class="card attrs">' + Object.keys(groups).map(function (gk) {
       return '<div><h3>' + BM.ATTR_GROUPS[gk] + '</h3>' + groups[gk].map(function (a) {
         var v = p.attrs[a.k];
@@ -790,3 +798,94 @@ UI.actions.tab = function (el) {
   UI.tab = el.dataset.tab; UI.render(); window.scrollTo(0, 0);
 };
 UI.actions.subtab = function (el) { UI.sub[el.dataset.key] = el.dataset.v; UI.render(); };
+
+// ==================================================================== pôle développement
+UI.squad_dev = function () {
+  var g = UI.g, me = g.teams[g.userTeam], roster = BM.roster(g, me);
+  var recs = BM.devRecommendations(g, me);
+  UI._recs = recs;
+  var prog = roster.map(function (p) { return { p: p, d: BM.ovr(p) - Math.round((p.seasonStartOvr || BM.ovrRaw(p)) * 5) }; })
+    .sort(function (a, b) { return b.d - a.d; });
+  var opt = function (list, sel) { return list.map(function (p) { return '<option value="' + p.id + '"' + (p.id === sel ? ' selected' : '') + '>' + UI.esc(BM.shortName(p)) + ' (' + p.age + ' ans)</option>'; }).join(''); };
+  var vets = roster.filter(function (p) { return p.age >= 26; }).sort(function (a, b) { return b.attrs.lead - a.attrs.lead; });
+  var youngs = roster.filter(function (p) { return p.age <= 24; }).sort(function (a, b) { return b.pot - a.pot; });
+  return '<div class="card"><div class="card-h"><h2>Recommandations du staff</h2><span class="small muted">' + recs.length + '</span></div>' +
+    (recs.length ? recs.map(function (r, i) {
+      return '<div class="rec"><div><b>' + UI.esc(r.t) + '</b><p>' + UI.esc(r.why) + '</p></div>' +
+        (r.act === 'extend' ? '<button class="btn sm" data-act="extendForm" data-id="' + r.id + '">Ouvrir</button>' : '<button class="btn sm primary" data-act="applyRec" data-i="' + i + '">Appliquer</button>') + '</div>';
+    }).join('') : '<p class="muted small" style="margin:0">Rien à signaler : le staff est satisfait.</p>') + '</div>' +
+    '<div class="card"><div class="card-h"><h2>Progression de la saison</h2></div>' + prog.slice(0, 8).map(function (x) {
+      return '<div class="attr click" data-act="player" data-id="' + x.p.id + '" style="cursor:pointer"><span><span class="pos">' + x.p.pos + '</span> ' + UI.esc(BM.shortName(x.p)) +
+        (x.p.retrain ? ' <span class="tag warn">→ ' + x.p.retrain.to + ' ' + Math.round(x.p.retrain.progress) + '%</span>' : '') + '</span>' +
+        '<b class="' + (x.d > 0 ? 'a-hi' : x.d < 0 ? 'a-lo' : 'a-mid') + '">' + (x.d > 0 ? '+' : '') + x.d + '</b></div>';
+    }).join('') + '</div>' +
+    '<div class="card"><div class="card-h"><h2>Mentorat</h2><span class="small muted">' + (me.mentoring || []).length + '/3</span></div>' +
+    ((me.mentoring || []).map(function (x, i) {
+      var m = g.players[x.mentor], pu = g.players[x.pupil];
+      return '<div class="rec"><div><b>' + UI.esc(BM.shortName(m)) + ' → ' + UI.esc(BM.shortName(pu)) + '</b><p>Leadership ' + m.attrs.lead + ' · depuis ' + (g.day - x.since) + ' j</p></div>' +
+        '<button class="btn sm danger" data-act="endMentor" data-i="' + i + '">Arrêter</button></div>';
+    }).join('') || '<p class="muted small" style="margin:0 0 8px">Aucun binôme. Un vétéran leader transmet QI, sang-froid, activité et leadership à un jeune.</p>') +
+    ((me.mentoring || []).length < 3 ? '<div class="grid2" style="margin-top:8px"><select id="mt-m" class="sel">' + opt(vets) + '</select><select id="mt-p" class="sel">' + opt(youngs) + '</select></div>' +
+      '<button class="btn block" style="margin-top:8px" data-act="addMentor">Créer le binôme</button>' : '') + '</div>' +
+    '<div class="card"><div class="card-h"><h2>G League</h2><span class="small muted">' + roster.filter(function (p) { return p.gleague; }).length + '/' + BM.GLEAGUE_MAX + '</span></div>' +
+    (roster.filter(function (p) { return p.gleague; }).map(function (p) {
+      var gl = p.gl || { gp: 0, pts: 0, reb: 0, ast: 0 };
+      return '<div class="rec"><div><b>' + UI.esc(BM.shortName(p)) + '</b><p>' + gl.gp + ' m · ' + (gl.gp ? (gl.pts / gl.gp).toFixed(1) : '-') + ' pts · ' + (gl.gp ? (gl.reb / gl.gp).toFixed(1) : '-') + ' reb</p></div>' +
+        '<button class="btn sm" data-act="toggleGL" data-id="' + p.id + '">Rappeler</button></div>';
+    }).join('') || '<p class="muted small" style="margin:0">Envoyez les jeunes sans temps de jeu en G League : progression ×1,6.</p>') + '</div>';
+};
+
+UI.devCard = function (p) {
+  var g = UI.g, me = g.teams[g.userTeam], rep = BM.coachReport(g, me, p);
+  var mentor = (me.mentoring || []).find(function (x) { return x.pupil === p.id; });
+  return '<div class="card"><div class="card-h"><h3>Rapport du staff</h3><span class="tag">' + UI.esc(rep.potential) + '</span></div>' +
+    '<div class="grid2"><div><p class="small muted" style="margin:0 0 4px">Points forts</p>' + rep.strengths.map(function (x) { return '<div class="attr"><span>' + x.l + '</span><b class="a-hi">' + x.v + '</b></div>'; }).join('') + '</div>' +
+    '<div><p class="small muted" style="margin:0 0 4px">À travailler</p>' + rep.weaknesses.map(function (x) { return '<div class="attr"><span>' + x.l + '</span><b class="a-lo">' + x.v + '</b></div>'; }).join('') + '</div></div>' +
+    '<p class="small" style="margin:8px 0 0">Rôle conseillé : <b>' + UI.esc(BM.ROLES[rep.role].l) + '</b> · Progression cette saison : <b>' + (rep.delta > 0 ? '+' : '') + rep.delta + '</b>' +
+    (mentor ? ' · Mentor : <b>' + UI.esc(BM.shortName(g.players[mentor.mentor])) + '</b>' : '') + '</p>' +
+    '<div class="field" style="margin-top:10px"><label>Focus individuel</label><select data-change="devFocus" data-id="' + p.id + '" class="sel">' + Object.keys(BM.DEV_FOCUS).map(function (k) {
+      return '<option value="' + k + '"' + ((p.devFocus || 'auto') === k ? ' selected' : '') + '>' + UI.esc(BM.DEV_FOCUS[k].l) + (k === rep.focus ? ' (conseillé)' : '') + '</option>';
+    }).join('') + '</select></div>' +
+    '<div class="field" style="margin-top:8px"><label>Repositionnement</label><select data-change="retrain" data-id="' + p.id + '" class="sel"><option value="">' +
+    (p.retrain ? 'En cours → ' + BM.POS_LABEL[p.retrain.to] + ' (' + Math.round(p.retrain.progress) + '%) — arrêter' : 'Garder le poste actuel') + '</option>' +
+    BM.adjacentPositions(p.pos).map(function (pos) {
+      var d = Math.round((BM.ovrRaw(p, pos) - BM.ovrRaw(p)) * 5);
+      return '<option value="' + pos + '"' + (p.retrain && p.retrain.to === pos ? ' selected' : '') + '>' + BM.POS_LABEL[pos] + ' (' + (d >= 0 ? '+' : '') + d + ')</option>';
+    }).join('') + '</select></div>' +
+    '<button class="btn block" style="margin-top:8px" data-act="toggleGL" data-id="' + p.id + '">' + (p.gleague ? 'Rappeler de G League' : 'Envoyer en G League') + '</button></div>';
+};
+
+UI.actions.applyRec = function (el) {
+  var r = UI._recs && UI._recs[+el.dataset.i];
+  if (!r) return;
+  UI.toast(BM.applyRecommendation(UI.g, UI.g.teams[UI.g.userTeam], r));
+  UI.save(); UI.render();
+};
+UI.actions.toggleGL = function (el) {
+  var g = UI.g, p = g.players[+el.dataset.id];
+  UI.toast(BM.toggleGLeague(g, g.teams[g.userTeam], p));
+  UI.save(); UI.render();
+  if (document.querySelector('.modal')) UI.showPlayer(p.id);
+};
+UI.actions.addMentor = function () {
+  var g = UI.g, m = +document.getElementById('mt-m').value, pu = +document.getElementById('mt-p').value;
+  UI.toast(BM.addMentoring(g, g.teams[g.userTeam], m, pu));
+  UI.save(); UI.render();
+};
+UI.actions.endMentor = function (el) {
+  var me = UI.g.teams[UI.g.userTeam];
+  me.mentoring.splice(+el.dataset.i, 1);
+  UI.save(); UI.render();
+};
+UI.changes.devFocus = function (el) {
+  var p = UI.g.players[+el.dataset.id];
+  p.devFocus = el.value;
+  UI.toast('Focus : ' + BM.DEV_FOCUS[el.value].l + '.');
+  UI.save();
+};
+UI.changes.retrain = function (el) {
+  var p = UI.g.players[+el.dataset.id];
+  p.retrain = el.value ? { to: el.value, progress: p.retrain && p.retrain.to === el.value ? p.retrain.progress : 0 } : null;
+  UI.toast(el.value ? 'Repositionnement vers ' + BM.POS_LABEL[el.value].toLowerCase() + ' lancé (~3 mois).' : 'Repositionnement arrêté.');
+  UI.save(); UI.showPlayer(p.id);
+};
