@@ -215,8 +215,9 @@ UI.actions.openMsg = function (el) {
   UI.modal('<div class="modal-h"><h2>' + UI.esc(m.title) + '</h2><button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
     '<p class="small muted" style="margin:0">' + UI.esc(BM.dateLabel(g, m.day)) + '</p>' +
     '<div class="card" style="white-space:pre-line">' + UI.esc(m.body) + (m.resolved ? '\n\n' + UI.esc(m.resolved) : '') + '</div>' +
-    (m.actions ? '<div class="btn-row">' + m.actions.map(function (a, i) {
-      return '<button class="btn' + (i === 0 ? ' primary' : '') + '" data-act="msgAction" data-id="' + m.id + '" data-i="' + i + '">' + UI.esc(a.label) + '</button>';
+    (m.actions ? '<div style="display:grid;gap:8px">' + m.actions.map(function (a, i) {
+      return '<button class="btn' + (i === 0 && !a.hint ? ' primary' : '') + '" style="text-align:left" data-act="msgAction" data-id="' + m.id + '" data-i="' + i + '">' + UI.esc(a.label) +
+        (a.hint ? '<br><span class="small muted" style="font-weight:500">' + UI.esc(a.hint) + '</span>' : '') + '</button>';
     }).join('') + '</div>' : ''));
   UI.save();
   UI.render();
@@ -276,7 +277,7 @@ UI.tab_squad = function () {
   if (UI.sub.squad !== 'list') return tabs + UI['squad_' + UI.sub.squad]();
   return tabs + UI.squad_list();
 };
-UI.SQUAD_TABS = [['list', 'Effectif'], ['dev', 'Développement']];
+UI.SQUAD_TABS = [['list', 'Effectif'], ['dev', 'Développement'], ['dyn', 'Vestiaire']];
 
 UI.squad_list = function () {
   var g = UI.g, me = g.teams[g.userTeam];
@@ -348,7 +349,10 @@ UI.showPlayer = function (id) {
     '<div class="kpi"><b>' + BM.money(p.contract.salary) + '</b><span>' + p.contract.years + ' saison(s) restante(s) · valeur ' + BM.money(BM.playerValue(p)) + '</span></div>' +
     '<div class="kpi"><b>' + Math.round(p.condition) + '%</b><span>Condition physique' + (p.injury > 0 ? ' · blessé ' + p.injury + ' j' : '') + '</span>' + UI.bar(p.condition) + '</div>' +
     '<div class="kpi"><b>' + Math.round(p.morale) + '</b><span>Moral · forme ' + UI.avgForm(p) + '</span>' + UI.bar(p.morale) + '</div>' +
-    '</div>' + progress + (mine ? UI.devCard(p) : '') + UI.gravityCard(p) +
+    '</div>' + progress + (mine ? UI.moodCard(p) + UI.devCard(p) : '') + UI.gravityCard(p) +
+    (p.awards && p.awards.length ? '<div class="card"><h3 style="margin-bottom:6px">Palmarès</h3><p class="small" style="margin:0">' + p.awards.slice(-8).reverse().map(function (a) {
+      return '<span class="tag legend" style="margin:2px">' + UI.esc(a.t) + ' ' + (2026 + a.s) + '</span>';
+    }).join(' ') + '</p></div>' : '') +
     '<div class="card attrs">' + Object.keys(groups).map(function (gk) {
       return '<div><h3>' + BM.ATTR_GROUPS[gk] + '</h3>' + groups[gk].map(function (a) {
         var lab = BM.attrLabel(g, p, a.k);
@@ -604,7 +608,7 @@ UI.changes.minutes = function (el, ev) {
 
 // ==================================================================== ligue
 UI.tab_comp = function () {
-  var html = UI.subTabs('comp', [['table', 'Classement'], ['fixtures', 'Calendrier'], ['stats', 'Statistiques'], ['playoffs', 'Playoffs'], ['history', 'Palmarès']]);
+  var html = UI.subTabs('comp', [['table', 'Classement'], ['fixtures', 'Calendrier'], ['stats', 'Statistiques'], ['playoffs', 'Playoffs'], ['awards', 'Trophées'], ['history', 'Palmarès']]);
   return html + UI['comp_' + UI.sub.comp]();
 };
 
@@ -699,7 +703,7 @@ UI.boxTable = function (g, box, side, team) {
 };
 
 // ==================================================================== mercato
-UI.MARKET_TABS = [['reco', 'Recrutement'], ['fa', 'Agents libres'], ['clubs', 'Joueurs NBA'], ['scouts', 'Scouts'], ['draft', 'Draft']];
+UI.MARKET_TABS = [['reco', 'Recrutement'], ['trade', 'Échanges'], ['fa', 'Agents libres'], ['clubs', 'Joueurs NBA'], ['scouts', 'Scouts'], ['draft', 'Draft']];
 
 // Note estimée (fourchette si le joueur est mal connu) et potentiel estimé.
 UI.estBadge = function (p) {
@@ -720,6 +724,7 @@ UI.tab_market = function () {
   if (src === 'reco') return head + UI.market_reco();
   if (src === 'scouts') return head + UI.market_scouts();
   if (src === 'draft') return head + UI.market_draft();
+  if (src === 'trade') return head + UI.market_trade();
   var list = src === 'fa' ? g.freeAgents.map(function (id) { return g.players[id]; }).filter(function (p) { return !p.prospect; })
     : Object.keys(g.players).map(function (id) { return g.players[id]; }).filter(function (p) {
       return p.teamId !== null && p.teamId !== g.userTeam;
@@ -1038,3 +1043,112 @@ UI.actions.staffMarket = function () {
 };
 UI.actions.hireStaff = function (el) { UI.toast(BM.hireStaff(UI.g, +el.dataset.id)); UI.save(); UI.closeModal(); UI.render(); };
 UI.actions.fireStaff = function (el) { UI.toast(BM.fireStaff(UI.g, +el.dataset.id)); UI.save(); UI.render(); };
+
+// ==================================================================== vestiaire (dynamique, moral, discussions)
+UI.moodCard = function (p) {
+  var g = UI.g, reasons = BM.happiness(g, p), per = BM.PERSONAS[p.persona || 'discret'];
+  return '<div class="card"><div class="card-h"><h3>Moral et statut</h3><span class="tag">' + UI.esc(BM.STATUS[p.status || 'rotation'].l) + '</span></div>' +
+    '<p class="small" style="margin:0 0 6px">Personnalité : <b>' + UI.esc(per.l) + '</b> <span class="muted">— ' + UI.esc(per.d) + '</span></p>' +
+    reasons.map(function (r) { return '<div class="attr"><span class="small">' + UI.esc(r.l) + '</span><b class="' + (r.v > 0 ? 'a-hi' : r.v < 0 ? 'a-lo' : 'a-mid') + '">' + (r.v > 0 ? '▲' : r.v < 0 ? '▼' : '•') + '</b></div>'; }).join('') +
+    '<button class="btn block" style="margin-top:8px" data-act="talkMenu" data-id="' + p.id + '">Discuter avec lui</button></div>';
+};
+
+UI.actions.talkMenu = function (el) {
+  var g = UI.g, p = g.players[+el.dataset.id];
+  var wait = p.lastTalk && g.day - p.lastTalk < 7;
+  UI.modal('<div class="modal-h"><h2>Discussion avec ' + UI.esc(BM.shortName(p)) + '</h2><button class="btn sm x" data-act="player" data-id="' + p.id + '">Retour</button></div>' +
+    '<p class="small muted" style="margin:0">' + UI.esc(BM.PERSONAS[p.persona || 'discret'].l) + ' · moral ' + Math.round(p.morale) + ' · forme ' + UI.avgForm(p) + '</p>' +
+    (wait ? '<p class="small" style="color:var(--warn);margin:0">Vous lui avez parlé il y a moins d\'une semaine : il risque de saturer.</p>' : '') +
+    '<div style="display:grid;gap:8px">' + ['praise', 'criticize', 'reassure', 'promise'].map(function (k) {
+      return '<button class="btn" style="text-align:left" data-act="talk" data-id="' + p.id + '" data-k="' + k + '">' + UI.esc(BM.TALKS[k].l) + '</button>';
+    }).join('') + '</div>');
+};
+
+UI.actions.talk = function (el) {
+  var g = UI.g, p = g.players[+el.dataset.id];
+  if (p.lastTalk && g.day - p.lastTalk < 7) p.morale = BM.clamp(p.morale - 2, 0, 100);
+  var res = BM.interact(g, p.id, el.dataset.k);
+  UI.save(); UI.render();
+  UI.modal('<div class="modal-h"><h2>Réaction</h2><button class="btn sm x" data-act="player" data-id="' + p.id + '">Voir le joueur</button></div><div class="card">' + UI.esc(res) + '</div>');
+};
+
+UI.squad_dyn = function () {
+  var g = UI.g, me = g.teams[g.userTeam], d = BM.dynamics(g, me);
+  var chip = function (p) {
+    return '<button class="chip" data-act="player" data-id="' + p.id + '"><span class="pos">' + p.pos + '</span> ' + UI.esc(BM.shortName(p)) +
+      ' <b class="' + (p.morale >= 65 ? 'a-hi' : p.morale < 40 ? 'a-lo' : 'a-mid') + '">' + Math.round(p.morale) + '</b></button>';
+  };
+  var unhappy = BM.roster(g, me).filter(function (p) { return p.morale < 45; });
+  return '<div class="card hero-card"><div class="card-h"><h2>Ambiance</h2><span class="tag ' + (d.atmosphere >= 66 ? 'good' : d.atmosphere >= 52 ? 'warn' : 'bad') + '">' + d.label + '</span></div>' +
+    UI.bar(d.atmosphere) + '<p class="hint" style="margin:8px 0 0">L\'ambiance pèse sur la cohésion (adresse en match). Les leaders comptent double : un leader mécontent contamine le vestiaire.</p></div>' +
+    '<div class="card"><h2 style="margin-bottom:8px">Hiérarchie</h2>' +
+    '<p class="small muted" style="margin:0 0 4px">Leaders</p><div class="chips">' + d.leaders.map(chip).join('') + '</div>' +
+    '<p class="small muted" style="margin:8px 0 4px">Joueurs influents</p><div class="chips">' + d.influents.map(chip).join('') + '</div>' +
+    '<p class="small muted" style="margin:8px 0 4px">Reste du groupe</p><div class="chips">' + d.others.map(chip).join('') + '</div></div>' +
+    '<div class="card"><div class="card-h"><h2>Joueurs mécontents</h2><span class="small muted">' + unhappy.length + '</span></div>' +
+    (unhappy.length ? unhappy.map(function (p) {
+      var why = BM.happiness(g, p).filter(function (x) { return x.v < 0; }).map(function (x) { return x.l; }).join(' · ');
+      return '<div class="rec"><div><b>' + UI.esc(BM.shortName(p)) + '</b> <span class="muted small">' + UI.esc(BM.PERSONAS[p.persona || 'discret'].l) + '</span><p>' + UI.esc(why || 'Moral bas') + '</p></div>' +
+        '<button class="btn sm" data-act="talkMenu" data-id="' + p.id + '">Discuter</button></div>';
+    }).join('') : '<p class="muted small" style="margin:0">Personne ne se plaint pour l\'instant.</p>') + '</div>' +
+    '<div class="card"><h2 style="margin-bottom:8px">Promesses en cours</h2>' + ((g.promises || []).map(function (pr) {
+      var p = g.players[pr.pid], avg = pr.played.length ? pr.played.reduce(function (a, b) { return a + b; }, 0) / pr.played.length : 0;
+      return '<div class="attr"><span>' + UI.esc(BM.shortName(p)) + ' : ' + pr.target + ' min (' + pr.played.length + '/' + pr.games + ' matchs)</span><b class="' + (avg >= pr.target - 1 ? 'a-hi' : 'a-lo') + '">' + avg.toFixed(1) + '</b></div>';
+    }).join('') || '<p class="muted small" style="margin:0">Aucune promesse.</p>') + '</div>';
+};
+
+// ==================================================================== trophées
+UI.comp_awards = function () {
+  var g = UI.g, hist = g.awardsHistory || {}, seasons = Object.keys(hist).sort(function (a, b) { return b - a; });
+  var as = Object.keys(g.players).map(function (id) { return g.players[id]; }).filter(function (p) { return (p.awards || []).some(function (a) { return a.t === 'All-Star' && a.s === g.season; }); });
+  return '<div class="card"><div class="card-h"><h2>All-Star ' + (2026 + g.season) + '</h2></div>' + (as.length ? '<div class="chips">' + as.map(function (p) {
+    return '<button class="chip" data-act="player" data-id="' + p.id + '">' + UI.esc(BM.shortName(p)) + ' <span class="muted">' + g.teams[p.teamId].short + '</span></button>';
+  }).join('') + '</div>' : '<p class="muted small" style="margin:0">Sélection annoncée à la mi-saison.</p>') + '</div>' +
+    (seasons.length ? seasons.map(function (s) {
+      var h = hist[s];
+      return '<div class="card"><h2 style="margin-bottom:8px">Saison ' + (2025 + +s) + '-' + String(26 + +s).slice(-2) + '</h2>' + Object.keys(h).filter(function (k) { return k !== 'allNba'; }).map(function (k) {
+        return '<div class="attr"><span>' + UI.esc(k) + '</span><b style="font-size:13px">' + UI.esc(h[k]) + '</b></div>';
+      }).join('') + '<p class="small muted" style="margin:6px 0 0">All-NBA 1re équipe : ' + UI.esc(h.allNba) + '</p></div>';
+    }).join('') : '<div class="card"><p class="muted" style="margin:0">Les trophées (MVP, DPOY, ROY, 6e homme, MIP, coach de l\'année, All-NBA) sont remis à la fin de chaque saison.</p></div>');
+};
+
+// ==================================================================== échanges
+UI.trade = UI.trade || { partner: null, give: {}, get: {} };
+UI.market_trade = function () {
+  var g = UI.g, me = g.teams[g.userTeam], T = UI.trade;
+  if (T.partner === null || T.partner === g.userTeam) T.partner = g.teams.find(function (t) { return t.id !== g.userTeam; }).id;
+  var ai = g.teams[T.partner];
+  var open = BM.tradeOpen(g);
+  var row = function (p, side) {
+    var on = !!T[side][p.id];
+    return '<label class="trow' + (on ? ' on' : '') + '"><input type="checkbox" data-change="tradePick" data-side="' + side + '" data-id="' + p.id + '"' + (on ? ' checked' : '') + '>' +
+      '<span class="pos">' + p.pos + '</span><span class="tn">' + UI.esc(BM.shortName(p)) + ' <span class="muted small">' + p.age + ' ans</span></span>' +
+      (side === 'give' ? UI.ovrBadge(BM.ovr(p)) : UI.estBadge(p)) + '<span class="small muted">' + BM.money(p.contract.salary) + '</span></label>';
+  };
+  var sum = function (side) { return Object.keys(T[side]).reduce(function (s, id) { return s + g.players[id].contract.salary; }, 0); };
+  var giveIds = Object.keys(T.give).map(Number), getIds = Object.keys(T.get).map(Number);
+  var ev = giveIds.length && getIds.length ? BM.evalTrade(g, T.partner, giveIds, getIds) : null;
+  return '<div class="card"><div class="card-h"><h2>Échanges</h2><span class="tag ' + (open ? 'good' : 'bad') + '">' + (open ? 'Marché ouvert' : 'Date limite passée') + '</span></div>' +
+    '<div class="field"><label>Partenaire</label><select class="sel" data-change="tradePartner">' + g.teams.filter(function (t) { return t.id !== g.userTeam; }).map(function (t) {
+      return '<option value="' + t.id + '"' + (t.id === T.partner ? ' selected' : '') + '>' + UI.esc(t.name) + ' (' + t.record.w + '-' + t.record.l + ')</option>';
+    }).join('') + '</select></div>' +
+    '<p class="hint" style="margin:8px 0 0">Règle salariale : au-dessus du plafond, vous ne pouvez pas recevoir plus de 125 % (+250 k$) des salaires envoyés. Les clubs en reconstruction privilégient jeunesse et potentiel, les candidats au titre le niveau immédiat.</p></div>' +
+    '<div class="card"><div class="card-h"><h3>Vous envoyez</h3><span class="small muted">' + BM.money(sum('give')) + '</span></div>' + BM.roster(g, me).sort(function (a, b) { return BM.ovrRaw(b) - BM.ovrRaw(a); }).map(function (p) { return row(p, 'give'); }).join('') + '</div>' +
+    '<div class="card"><div class="card-h"><h3>Vous recevez de ' + UI.esc(ai.short) + '</h3><span class="small muted">' + BM.money(sum('get')) + '</span></div>' + BM.roster(g, ai).sort(function (a, b) { return BM.ovrRaw(b) - BM.ovrRaw(a); }).map(function (p) { return row(p, 'get'); }).join('') + '</div>' +
+    '<div class="card">' + (ev ? '<p style="margin:0 0 8px"><span class="tag ' + (ev.ok ? 'good' : ev.mood === 'hésite' ? 'warn' : 'bad') + '">' + (ev.ok ? 'Probable : accepté' : ev.mood === 'hésite' ? 'Ils hésitent' : 'Refus probable') + '</span> ' + UI.esc(ev.msg) + '</p>' : '<p class="muted small" style="margin:0 0 8px">Cochez des joueurs des deux côtés.</p>') +
+    '<button class="btn primary block" data-act="proposeTrade"' + (ev && open ? '' : ' disabled') + '>Proposer l\'échange</button></div>';
+};
+
+UI.changes.tradePartner = function (el) { UI.trade = { partner: +el.value, give: {}, get: {} }; UI.render(); };
+UI.changes.tradePick = function (el) {
+  var side = el.dataset.side, id = +el.dataset.id;
+  if (el.checked) UI.trade[side][id] = 1; else delete UI.trade[side][id];
+  UI.render();
+};
+UI.actions.proposeTrade = function () {
+  var g = UI.g, T = UI.trade;
+  var r = BM.executeTrade(g, T.partner, Object.keys(T.give).map(Number), Object.keys(T.get).map(Number));
+  UI.toast(r.msg);
+  if (r.ok) { BM.Juice.sound('coin'); UI.trade = { partner: T.partner, give: {}, get: {} }; UI.save(); }
+  UI.render();
+};

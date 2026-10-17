@@ -364,6 +364,13 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .grade { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; font-family: var(--display); font-weight: 800; font-size: 18px; color: #fff; flex: none; }
 .grade.gA { background: linear-gradient(135deg, #2f9e44, #51cf66); } .grade.gB { background: linear-gradient(135deg, #1971c2, #4dabf7); }
 .grade.gC { background: linear-gradient(135deg, #e67700, #fcc419); } .grade.gD { background: linear-gradient(135deg, #868e96, #adb5bd); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; font-size: 13px; }
+.trow { display: grid; grid-template-columns: 22px 36px 1fr auto 62px; gap: 8px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 13px; }
+.trow:last-child { border-bottom: 0; }
+.trow.on { background: var(--accent-soft); }
+.trow input { width: 18px; height: 18px; accent-color: var(--accent); }
+.trow .tn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .tac-card {
   display: grid; gap: 6px; text-align: left; padding: 12px; border-radius: 14px; cursor: pointer;

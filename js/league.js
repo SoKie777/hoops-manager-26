@@ -51,6 +51,7 @@ BM.newGame = function (opts) {
   Object.keys(g.players).forEach(function (id) { g.players[id].seasonStartOvr = BM.ovrRaw(g.players[id]); });
   BM.scheduleSeason(g);
   BM.initScouting(g);
+  BM.initEcosystem(g);
   var team = g.teams[g.userTeam];
   BM.addMessage(g, 'Bienvenue à ' + team.name, 'La direction vous souhaite la bienvenue, ' + g.managerName + '.\n\nObjectif fixé : ' +
     BM.OBJECTIVES[g.objective] + '.\n\nMasse salariale : ' + BM.money(BM.payroll(g, team)) + ' (plafond ' + BM.money(team.wageBudget) +
@@ -234,6 +235,14 @@ BM.afterUserMatch = function (g, fx, m) {
   BM.addMessage(g, (won ? 'Victoire' : 'Défaite') + ' contre ' + opp.name + ' (' + us + '-' + them + ')',
     (fx.type === 'playoff' ? 'Playoffs. ' : 'Championnat, journée ' + fx.round + '. ') +
     (mvp ? 'Homme du match : ' + BM.fullName(mvp) + ' (' + g.teams[mvp.teamId].short + ').' : ''), 'match');
+  // Déclaration fanfaronne d'avant-match : récompensée ou punie selon le résultat.
+  if (g.press && g.press.bold) {
+    BM.roster(g, me).forEach(function (p) { p.morale = BM.clamp(p.morale + (won ? 2 : -2), 0, 100); });
+    if (!won) g.board.confidence = BM.clamp(g.board.confidence - 2, 0, 100);
+    g.press = null;
+  }
+  BM.playingTimeMood(g, me, fx);
+  BM.pressConference(g, fx, 'post');
 };
 
 // ==================================================================== avancer d'un jour
@@ -249,6 +258,7 @@ BM.advance = function (g) {
     if (BM.availablePlayers(g, me).length < 5) {
       return { state: 'blocked', msg: 'Moins de 5 joueurs disponibles : recrutez un agent libre avant le match.' };
     }
+    if (!ufx.pressDone) { ufx.pressDone = true; BM.pressConference(g, ufx, 'pre'); }
     return { state: 'match', fx: ufx };
   }
   BM.fixturesOn(g, g.day).forEach(function (fx) { if (!fx.played) BM.playMatch(g, fx); });
@@ -272,6 +282,7 @@ BM.endDay = function (g) {
   BM.aiTransfers(g);
   BM.transferOffers(g);
   BM.scoutDaily(g);
+  BM.ecoDaily(g);
 
   // Fin de mois : sponsors et salaires.
   var date = BM.dateOf(g, g.day + 1);
@@ -422,10 +433,9 @@ BM.endSeason = function (g) {
   summary.finalPos = finalPos; summary.champion = g.teams[po.champion].name; summary.objective = BM.OBJECTIVES[g.objective]; summary.met = met;
   g.board.confidence = BM.clamp(g.board.confidence + (met ? 20 : -25) + (champion ? 15 : 0), 0, 100);
 
-  // Récompenses.
-  var all = Object.keys(g.players).map(function (id) { return g.players[id]; }).filter(function (p) { return p.teamId !== null && p.stats.gp >= 12; });
-  var mvp = all.sort(function (a, b) { return b.stats.rtg / b.stats.gp - a.stats.rtg / a.stats.gp; })[0];
-  summary.mvp = mvp ? BM.fullName(mvp) + ' (' + g.teams[mvp.teamId].short + ')' : '-';
+  // Trophées NBA (avant la remise à zéro des statistiques).
+  summary.awards = BM.seasonAwards(g);
+  summary.mvp = summary.awards.MVP || '-';
   g.history.push({ season: g.season, champion: po.champion, pos: finalPos, reached: reached, mvp: summary.mvp });
 
   if (g.board.confidence < 15) {
@@ -530,6 +540,8 @@ BM.startNewSeason = function (g) {
   Object.keys(g.players).forEach(function (id) { g.players[id].seasonStartOvr = BM.ovrRaw(g.players[id]); });
   g.draft = null;
   BM.genDraftClass(g);
+  BM.initEcosystem(g);
+  g.teams.forEach(function (t) { BM.assignStatuses(g, t); });
   BM.refreshStaffPool(g);
   BM.addMessage(g, 'Saison ' + g.season + ' : nouvel objectif', 'La direction attend de vous : ' + BM.OBJECTIVES[g.objective] + '.', 'board');
 };
@@ -629,6 +641,8 @@ BM.offerContract = function (g, pid, salary, years, fee) {
   p.contract = { salary: salary, years: years };
   p.morale = Math.min(100, p.morale + 10);
   BM.addToTeam(g, p, me);
+  BM.assignPersona(g, p);
+  BM.assignStatuses(g, me);
   if (sellerId !== null) BM.fillRoster(g, g.teams[sellerId]);
   BM.addMessage(g, 'Signature : ' + BM.fullName(p), BM.fullName(p) + ' s\'engage pour ' + years + ' saison(s) à ' + BM.money(salary) + ' par an' + (fee ? ', indemnité ' + BM.money(fee) : '') + '.', 'transfer');
   return { ok: true, msg: BM.fullName(p) + ' a signé !' };
@@ -677,6 +691,8 @@ BM.handleMessageAction = function (g, msgId, idx) {
   var a = m.actions[idx];
   m.actions = null;
   if (a.act === 'decline') { m.resolved = 'Offre refusée.'; return m.resolved; }
+  if (a.act === 'press') { m.resolved = 'Votre réponse : « ' + a.label + ' » — ' + BM.pressAnswer(g, a); return m.resolved; }
+  if (a.act === 'talk') { m.resolved = BM.interact(g, a.pid, a.kind); return m.resolved; }
   if (a.act === 'sell') {
     var p = g.players[a.pid], buyer = g.teams[a.team];
     if (p.teamId !== g.userTeam) { m.resolved = 'Le joueur n\'est plus dans votre effectif.'; return m.resolved; }
@@ -709,6 +725,7 @@ BM.deserialize = function (json) {
   g.teams.forEach(function (t) { BM.migrateTactics(g, t); });
   Object.keys(g.players).forEach(function (id) { var p = g.players[id]; if (p.seasonStartOvr === undefined) p.seasonStartOvr = BM.ovrRaw(p); });
   BM.initScouting(g);
+  BM.initEcosystem(g);
   // Migration : abréviations par surnom d'équipe (WAR, THU...).
   if (BM.NBA) g.teams.forEach(function (t) {
     var d = BM.NBA.teams.find(function (x) { return x.code === t.code; });

@@ -2,7 +2,7 @@
 // Lancement : node test/sim.test.js
 var path = require('path');
 var assert = require('assert');
-['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'engine', 'league'].forEach(function (f) {
+['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'league'].forEach(function (f) {
   require(path.join(__dirname, '..', 'js', f + '.js'));
 });
 var BM = globalThis.BM;
@@ -77,6 +77,24 @@ assert(ppg > 100 && ppg < 125, 'points par équipe hors plage : ' + ppg);
 assert(fg > 0.4 && fg < 0.54, 'FG% hors plage');
 assert(tp > 0.3 && tp < 0.42, '3P% hors plage');
 assert(ft > 0.65 && ft < 0.85, 'LF% hors plage');
+
+// Écosystème : trophées, échange, discussion, conférence de presse.
+assert(g.awardsHistory && Object.keys(g.awardsHistory).length >= 1, 'trophées remis');
+var g3 = BM.newGame({ seed: 77, teamId: 17, managerName: 'T' });
+var me3 = g3.teams[17], partner = g3.teams[3];
+var giveP = BM.roster(g3, me3).sort(function (a, b) { return b.contract.salary - a.contract.salary; })[3];
+var getP = BM.roster(g3, partner).sort(function (a, b) { return BM.ovrRaw(a) - BM.ovrRaw(b); })[0];
+var ev = BM.evalTrade(g3, 3, [giveP.id], [getP.id]);
+assert(typeof ev.ok === 'boolean' && ev.msg, 'évaluation de l\'échange');
+if (ev.ok) { BM.executeTrade(g3, 3, [giveP.id], [getP.id]); assert(getP.teamId === 17 && giveP.teamId === 3, 'échange exécuté'); }
+var talk = BM.interact(g3, BM.roster(g3, me3)[0].id, 'praise');
+assert(talk.length > 5, 'discussion');
+BM.interact(g3, BM.roster(g3, me3)[5].id, 'promise');
+assert(g3.promises.length === 1, 'promesse enregistrée');
+assert(['franchise', 'titulaire', 'rotation', 'banc', 'espoir'].indexOf(BM.roster(g3, me3)[0].status) >= 0, 'statut');
+var dyn = BM.dynamics(g3, me3);
+assert(dyn.leaders.length === 3 && dyn.atmosphere > 0, 'dynamique du vestiaire');
+console.log('Écosystème OK : échange', ev.mood, '| ambiance', dyn.label);
 
 // Sauvegarde / chargement.
 var g2 = BM.deserialize(BM.serialize(g));

@@ -38,7 +38,10 @@ UI.showSeasonSummary = function (s) {
     '<div class="grid2"><div class="kpi"><b>' + s.finalPos + '<sup>e</sup></b><span>Saison régulière</span></div>' +
     '<div class="kpi"><b>' + UI.esc(s.champion) + '</b><span>Champion</span></div></div>' +
     '<div class="card"><p style="margin:0">Objectif : ' + UI.esc(s.objective) + ' — <b style="color:' + (s.met ? 'var(--good)' : 'var(--bad)') + '">' + (s.met ? 'atteint' : 'manqué') + '</b></p>' +
-    '<p class="small muted" style="margin:6px 0 0">Confiance de la direction : ' + g.board.confidence + '% · MVP de la saison : ' + UI.esc(s.mvp) + '</p></div>' +
+    '<p class="small muted" style="margin:6px 0 0">Confiance de la direction : ' + g.board.confidence + '%</p></div>' +
+    (s.awards ? '<div class="card"><h3 style="margin-bottom:6px">Trophées NBA</h3>' + Object.keys(s.awards).filter(function (k) { return k !== 'allNba'; }).map(function (k) {
+      return '<div class="attr"><span>' + UI.esc(k) + '</span><b style="font-size:13px">' + UI.esc(s.awards[k]) + '</b></div>';
+    }).join('') + '<p class="small muted" style="margin:6px 0 0">All-NBA 1re équipe : ' + UI.esc(s.awards.allNba) + '</p></div>' : '') +
     (s.departures && s.departures.length ? '<div class="card"><h3 style="margin-bottom:6px">Départs</h3><p class="small" style="margin:0">' + s.departures.map(UI.esc).join('<br>') + '</p></div>' : '') +
     (s.prospects && s.prospects.length ? '<div class="card"><h3 style="margin-bottom:6px">Centre de formation</h3><p class="small" style="margin:0">' + s.prospects.map(UI.esc).join('<br>') + '</p></div>' : '') +
     '<p class="small muted" style="margin:0">Les joueurs ont pris un an : progression des jeunes, déclin des vétérans, contrats mis à jour.</p>' +
