@@ -332,7 +332,9 @@ UI.showPlayer = function (id) {
       '<button class="btn" data-act="toggleList" data-id="' + p.id + '">' + (p.listed ? 'Retirer de la liste' : 'Placer sur la liste des transferts') + '</button>' +
       '<button class="btn danger" data-act="releaseAsk" data-id="' + p.id + '">Libérer</button></div>';
   } else {
-    actions = '<button class="btn primary block" data-act="offerForm" data-id="' + p.id + '">' + (team ? 'Faire une offre de rachat' : 'Proposer un contrat') + '</button>';
+    actions = p.prospect ? '<p class="hint" style="margin:0">Prospect de la draft (' + UI.esc(p.college) + ') : disponible le soir de la draft.</p>'
+      : '<button class="btn primary block" data-act="offerForm" data-id="' + p.id + '">' + (team ? 'Faire une offre de rachat' : 'Proposer un contrat') + '</button>';
+    if (BM.knowledge(g, p) < 100) actions += '<button class="btn block" data-act="scoutPlayer" data-id="' + p.id + '">Faire observer par un scout</button>';
   }
   var progress = p.lastProgress && g.day - p.lastProgress.day <= 14
     ? '<p class="small" style="margin:0;color:var(--good)">Progression récente : ' + UI.esc(BM.ATTRS.find(function (a) { return a.k === p.lastProgress.k; }).l) + ' +1</p>' : '';
@@ -341,15 +343,16 @@ UI.showPlayer = function (id) {
     '<div><h2>' + UI.esc(BM.fullName(p)) + '</h2><span class="small muted">' + BM.POS_LABEL[p.pos] + ' · ' + p.age + ' ans · ' + p.height + ' cm · ' + (team ? UI.esc(team.name) : 'Agent libre') + '</span></div>' +
     '<button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
     '<div class="grid2">' +
-    '<div class="kpi"><b>' + UI.ovrBadge(BM.ovr(p)) + ' <span class="muted" style="font-size:14px">pot. ' + BM.potDisplay(p) + '</span></b><span>Note actuelle / potentiel estimé</span></div>' +
+    (mine ? '<div class="kpi"><b>' + UI.ovrBadge(BM.ovr(p)) + ' <span class="muted" style="font-size:14px">pot. ' + BM.potDisplay(p) + '</span></b><span>Note actuelle / potentiel estimé</span></div>'
+      : '<div class="kpi"><b>' + UI.estBadge(p) + ' <span class="muted" style="font-size:14px">pot. ' + UI.estPot(p) + '</span></b><span>Estimation des scouts · connu à ' + Math.round(BM.knowledge(g, p)) + '%</span>' + UI.knowBar(p) + '</div>') +
     '<div class="kpi"><b>' + BM.money(p.contract.salary) + '</b><span>' + p.contract.years + ' saison(s) restante(s) · valeur ' + BM.money(BM.playerValue(p)) + '</span></div>' +
     '<div class="kpi"><b>' + Math.round(p.condition) + '%</b><span>Condition physique' + (p.injury > 0 ? ' · blessé ' + p.injury + ' j' : '') + '</span>' + UI.bar(p.condition) + '</div>' +
     '<div class="kpi"><b>' + Math.round(p.morale) + '</b><span>Moral · forme ' + UI.avgForm(p) + '</span>' + UI.bar(p.morale) + '</div>' +
     '</div>' + progress + (mine ? UI.devCard(p) : '') + UI.gravityCard(p) +
     '<div class="card attrs">' + Object.keys(groups).map(function (gk) {
       return '<div><h3>' + BM.ATTR_GROUPS[gk] + '</h3>' + groups[gk].map(function (a) {
-        var v = p.attrs[a.k];
-        return '<div class="attr"><span>' + a.l + '</span><b class="' + UI.attrClass(v) + '">' + v + '</b></div>';
+        var lab = BM.attrLabel(g, p, a.k);
+        return '<div class="attr"><span>' + a.l + '</span><b class="' + UI.attrClass(lab.v) + '">' + lab.t + '</b></div>';
       }).join('') + '</div>';
     }).join('') + '</div>' +
     '<div class="card"><div class="card-h"><h3>Saison en cours</h3><span class="small muted">' + s.gp + ' match(s)</span></div>' +
@@ -696,31 +699,139 @@ UI.boxTable = function (g, box, side, team) {
 };
 
 // ==================================================================== mercato
+UI.MARKET_TABS = [['reco', 'Recrutement'], ['fa', 'Agents libres'], ['clubs', 'Joueurs NBA'], ['scouts', 'Scouts'], ['draft', 'Draft']];
+
+// Note estimée (fourchette si le joueur est mal connu) et potentiel estimé.
+UI.estBadge = function (p) {
+  var g = UI.g, est = BM.scoutEstimate(g, p), lbl = BM.estLabel(est.ovr, est.errO);
+  return '<span class="ovr' + (est.errO * 5 > 1 ? ' est' : '') + '" style="background:' + UI.ovrColor(Math.round(est.ovr * 5)) + '">' + lbl + '</span>';
+};
+UI.estPot = function (p) { var est = BM.scoutEstimate(UI.g, p); return BM.estLabel(est.pot, est.errP); };
+UI.knowBar = function (p) { var k = Math.round(BM.knowledge(UI.g, p)); return '<span class="know" title="Connaissance ' + k + '%"><i style="width:' + k + '%"></i></span>'; };
+
 UI.tab_market = function () {
   var g = UI.g, me = g.teams[g.userTeam];
+  if (!UI.MARKET_TABS.some(function (t) { return t[0] === UI.sub.market; })) UI.sub.market = 'reco';
   var src = UI.sub.market;
-  var list = src === 'fa' ? g.freeAgents.map(function (id) { return g.players[id]; })
+  var head = '<div class="grid2">' +
+    '<div class="kpi"><b>' + BM.money(me.balance) + '</b><span>Trésorerie (rachats)</span></div>' +
+    '<div class="kpi"><b>' + BM.money(me.wageBudget - BM.payroll(g, me)) + '</b><span>Marge salariale</span></div></div>' +
+    UI.subTabs('market', UI.MARKET_TABS);
+  if (src === 'reco') return head + UI.market_reco();
+  if (src === 'scouts') return head + UI.market_scouts();
+  if (src === 'draft') return head + UI.market_draft();
+  var list = src === 'fa' ? g.freeAgents.map(function (id) { return g.players[id]; }).filter(function (p) { return !p.prospect; })
     : Object.keys(g.players).map(function (id) { return g.players[id]; }).filter(function (p) {
       return p.teamId !== null && p.teamId !== g.userTeam;
     });
   if (UI.marketPos) list = list.filter(function (p) { return p.pos === UI.marketPos; });
-  list.sort(function (a, b) { return BM.ovrRaw(b) - BM.ovrRaw(a); });
+  list.sort(function (a, b) { return BM.scoutEstimate(g, b).ovr - BM.scoutEstimate(g, a).ovr; });
   list = list.slice(0, 60);
-  return '<div class="grid2">' +
-    '<div class="kpi"><b>' + BM.money(me.balance) + '</b><span>Trésorerie (rachats)</span></div>' +
-    '<div class="kpi"><b>' + BM.money(me.wageBudget - BM.payroll(g, me)) + '</b><span>Marge salariale</span></div></div>' +
-    UI.subTabs('market', [['fa', 'Agents libres'], ['clubs', 'Joueurs des clubs']]) +
+  return head +
     '<div class="tabs">' + [['', 'Tous']].concat(BM.POSITIONS.map(function (p) { return [p, p]; })).map(function (p) {
       return '<button data-act="marketPos" data-v="' + p[0] + '" class="' + (UI.marketPos === p[0] ? 'on' : '') + '">' + p[1] + '</button>';
     }).join('') + '</div>' +
-    '<div class="card"><div class="table-wrap"><table><thead><tr><th>Pos</th><th>Nom</th><th class="num">Âge</th><th class="num">Note</th><th class="num">Pot.</th>' +
+    '<div class="card"><div class="table-wrap"><table><thead><tr><th>Pos</th><th>Nom</th><th class="num">Âge</th><th class="num">Note</th><th class="num">Pot.</th><th>Connu</th>' +
     (src === 'fa' ? '' : '<th class="hide-sm">Club</th><th class="num">Valeur</th>') + '<th class="num">Salaire</th></tr></thead><tbody>' +
     list.map(function (p) {
       return '<tr class="click" data-act="player" data-id="' + p.id + '"><td><span class="pos">' + p.pos + '</span></td><td>' + UI.esc(BM.shortName(p)) + UI.statusTags(p) + '</td>' +
-        '<td class="num">' + p.age + '</td><td class="num">' + UI.ovrBadge(BM.ovr(p)) + '</td><td class="num muted">' + BM.potDisplay(p) + '</td>' +
+        '<td class="num">' + p.age + '</td><td class="num">' + UI.estBadge(p) + '</td><td class="num muted">' + UI.estPot(p) + '</td><td>' + UI.knowBar(p) + '</td>' +
         (src === 'fa' ? '' : '<td class="hide-sm">' + g.teams[p.teamId].short + '</td><td class="num">' + BM.money(BM.playerValue(p)) + '</td>') +
         '<td class="num">' + BM.money(src === 'fa' ? BM.askingSalary(p) : p.contract.salary) + '</td></tr>';
-    }).join('') + '</tbody></table></div>' + (list.length ? '' : '<p class="muted">Aucun joueur.</p>') + '</div>';
+    }).join('') + '</tbody></table></div>' + (list.length ? '' : '<p class="muted">Aucun joueur.</p>') +
+    '<p class="hint" style="margin:10px 0 0">Les notes en fourchette viennent de vos scouts : plus un joueur est observé, plus l\'estimation est précise.</p></div>';
+};
+
+UI.market_reco = function () {
+  var g = UI.g, me = g.teams[g.userTeam], needs = BM.teamNeeds(g, me), targets = BM.assistantTargets(g, 10);
+  var a = BM.staffOf(g, 'assistant')[0];
+  return '<div class="card hero-card"><div class="card-h"><h2>Besoins de l\'équipe</h2><span class="small muted">' + (a ? UI.esc(a.name) + ', assistant' : 'Pas d\'assistant') + '</span></div>' +
+    (needs.length ? needs.map(function (n) { return '<div class="rec"><div><b>' + BM.POS_LABEL[n.pos] + (n.role ? ' · ' + UI.esc(BM.ROLES[n.role].l) : '') + '</b><p>' + UI.esc(n.why) + '</p></div><span class="tag ' + (n.w >= 2 ? 'bad' : 'warn') + '">' + (n.w >= 2 ? 'Prioritaire' : 'Utile') + '</span></div>'; }).join('')
+      : '<p class="muted small" style="margin:0">Effectif équilibré : aucun manque majeur.</p>') + '</div>' +
+    '<div class="card"><div class="card-h"><h2>L\'assistant recommande</h2></div>' + targets.map(function (x) {
+      var p = x.p, where = p.teamId === null ? 'Agent libre' : g.teams[p.teamId].short + (p.listed ? ' · transférable' : '');
+      return '<div class="rec click" data-act="player" data-id="' + p.id + '" style="cursor:pointer"><div><b><span class="pos">' + p.pos + '</span> ' + UI.esc(BM.shortName(p)) + '</b> <span class="muted small">' + p.age + ' ans · ' + UI.esc(where) + '</span>' +
+        '<p><span class="tag ' + (x.access === 'Signable' ? 'good' : x.access === 'Échange' ? '' : 'warn') + '">' + x.access + '</span> ' + (x.need ? UI.esc(x.need.why) : 'Renfort de qualité') +
+        ' · +' + Math.round(x.gain * 5) + ' sur le poste · ' + BM.money(p.teamId === null ? BM.askingSalary(p) : p.contract.salary) + '/an</p></div>' +
+        '<span style="text-align:right">' + UI.estBadge(p) + '<br>' + UI.knowBar(p) + '</span></div>';
+    }).join('') + '</div>';
+};
+
+UI.market_scouts = function () {
+  var g = UI.g, scouts = BM.staffOf(g, 'scout');
+  return '<div class="card"><div class="card-h"><h2>Missions des scouts</h2><span class="small muted">' + scouts.length + '/' + BM.SCOUT_MAX + '</span></div>' +
+    (scouts.length ? scouts.map(function (s) {
+      var a = g.assignments[s.id] || { type: '' };
+      return '<div class="role-row"><div><b>' + UI.esc(s.name) + '</b><div class="small muted">Niveau ' + s.skills.judgeA + ' · potentiel ' + s.skills.judgeP + '</div></div>' +
+        '<select data-change="assign" data-id="' + s.id + '"><option value="">Aucune mission</option>' + Object.keys(BM.ASSIGNMENTS).map(function (k) {
+          return '<option value="' + k + '"' + (a.type === k ? ' selected' : '') + '>' + BM.ASSIGNMENTS[k] + '</option>';
+        }).join('') + '</select></div>';
+    }).join('') : '<p class="muted small" style="margin:0">Aucun scout : engagez-en dans l\'onglet Club.</p>') + '</div>' +
+    '<div class="card"><div class="card-h"><h2>Derniers rapports</h2></div>' + ((g.reports || []).slice(0, 15).map(function (r) {
+      var p = g.players[r.pid];
+      if (!p) return '';
+      return '<div class="rec click" data-act="player" data-id="' + p.id + '" style="cursor:pointer"><div><b><span class="pos">' + p.pos + '</span> ' + UI.esc(BM.fullName(p)) + '</b><p>' +
+        UI.esc(r.scout) + ' · ' + UI.esc(BM.dateLabel(g, r.day)) + (p.prospect ? ' · ' + UI.esc(p.college) : '') + '</p></div>' +
+        '<span class="grade g' + r.grade + '">' + r.grade + '</span></div>';
+    }).join('') || '<p class="muted small" style="margin:0">Pas encore de rapport : les scouts publient quand ils connaissent un joueur à 70 %.</p>') + '</div>';
+};
+
+UI.market_draft = function () {
+  var g = UI.g, board = (g.draftClass || []).map(function (id) { return g.players[id]; })
+    .sort(function (a, b) { return BM.scoutEstimate(g, b).pot - BM.scoutEstimate(g, a).pot; });
+  return '<div class="card"><div class="card-h"><h2>Big board · draft ' + (2026 + g.season) + '</h2><span class="small muted">' + board.length + ' prospects</span></div>' +
+    '<p class="hint" style="margin:0 0 8px">Classement selon les estimations de vos scouts (mission « Prospects de la draft »). La draft a lieu après les finales.</p>' +
+    '<div class="table-wrap"><table><thead><tr><th>#</th><th>Pos</th><th>Prospect</th><th class="num">Âge</th><th class="num">Note</th><th class="num">Pot.</th><th>Connu</th></tr></thead><tbody>' +
+    board.slice(0, 40).map(function (p, i) {
+      return '<tr class="click" data-act="player" data-id="' + p.id + '"><td>' + (i + 1) + '</td><td><span class="pos">' + p.pos + '</span></td><td>' + UI.esc(BM.shortName(p)) +
+        '<div class="small muted">' + UI.esc(p.college) + '</div></td><td class="num">' + p.age + '</td><td class="num">' + UI.estBadge(p) + '</td><td class="num">' + UI.estPot(p) + '</td><td>' + UI.knowBar(p) + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+};
+
+UI.changes.assign = function (el) {
+  var g = UI.g;
+  if (el.value) g.assignments[+el.dataset.id] = { type: el.value }; else delete g.assignments[+el.dataset.id];
+  UI.toast(el.value ? 'Mission : ' + BM.ASSIGNMENTS[el.value] + '.' : 'Mission retirée.');
+  UI.save();
+};
+
+// ==================================================================== salle de draft
+UI.showDraft = function () {
+  var g = UI.g;
+  if (!g.draft) BM.startDraft(g);
+  var userTurn = BM.draftAdvance(g);
+  UI.save();
+  if (!userTurn) {
+    BM.finishDraft(g);
+    UI.save();
+    UI.modalLocked = false;
+    UI.closeModal();
+    UI.toast('Draft terminée.');
+    UI.cont(false);
+    return;
+  }
+  var d = g.draft, slot = d.order[d.next];
+  var board = g.draftClass.map(function (id) { return g.players[id]; }).sort(function (a, b) { return BM.scoutEstimate(g, b).pot - BM.scoutEstimate(g, a).pot; });
+  var recent = d.picks.slice(-6).reverse();
+  UI.modalLocked = true;
+  UI.modal('<div class="modal-h"><h2>Draft · choix n°' + slot.pick + '</h2><span class="tag good">À vous</span></div>' +
+    '<div class="card"><h3 style="margin-bottom:6px">Derniers choix</h3>' + (recent.length ? recent.map(function (x) {
+      var p = g.players[x.pid];
+      return '<div class="attr"><span>n°' + x.pick + ' ' + UI.esc(g.teams[x.team].short) + '</span><span>' + UI.esc(BM.shortName(p)) + ' <span class="muted small">' + p.pos + '</span></span></div>';
+    }).join('') : '<p class="muted small" style="margin:0">Vous ouvrez la draft.</p>') + '</div>' +
+    '<div class="card"><h3 style="margin-bottom:6px">Votre big board</h3>' + board.slice(0, 15).map(function (p, i) {
+      return '<div class="rec"><div><b>' + (i + 1) + '. <span class="pos">' + p.pos + '</span> ' + UI.esc(BM.fullName(p)) + '</b><p>' + p.age + ' ans · ' + UI.esc(p.college) +
+        ' · note ' + BM.estLabel(BM.scoutEstimate(g, p).ovr, BM.scoutEstimate(g, p).errO) + ' · pot. ' + UI.estPot(p) + '</p></div>' +
+        '<button class="btn sm primary" data-act="draftPick" data-id="' + p.id + '">Drafter</button></div>';
+    }).join('') + '</div>');
+};
+
+UI.actions.draftPick = function (el) {
+  var g = UI.g, p = g.players[+el.dataset.id];
+  BM.draftPlayer(g, p.id);
+  BM.Juice.sound('cheer'); BM.Juice.haptic('heavy');
+  UI.toast(BM.fullName(p) + ' rejoint ' + g.teams[g.userTeam].name + ' !');
+  UI.showDraft();
 };
 
 UI.actions.marketPos = function (el) { UI.marketPos = el.dataset.v; UI.render(); };
@@ -736,6 +847,7 @@ UI.tab_club = function () {
     '<div class="kpi"><b>' + BM.money(me.balance) + '</b><span>Trésorerie / budget transferts</span></div>' +
     '<div class="kpi"><b>' + BM.money(payroll) + '</b><span>Masse salariale (plafond ' + BM.money(me.wageBudget) + ')</span>' + UI.bar(100 - payroll / me.wageBudget * 100 + 50) + '</div>' +
     '</div></div>' +
+    UI.staffCard() +
     '<div class="card"><h2 style="margin-bottom:8px">Direction</h2>' +
     '<p style="margin:0 0 6px">Objectif : <b>' + BM.OBJECTIVES[g.objective] + '</b></p>' +
     '<p class="small muted" style="margin:0 0 6px">Confiance : ' + g.board.confidence + '%</p>' + UI.bar(g.board.confidence) +
@@ -889,3 +1001,40 @@ UI.changes.retrain = function (el) {
   UI.toast(el.value ? 'Repositionnement vers ' + BM.POS_LABEL[el.value].toLowerCase() + ' lancé (~3 mois).' : 'Repositionnement arrêté.');
   UI.save(); UI.showPlayer(p.id);
 };
+
+UI.actions.scoutPlayer = function (el) {
+  var g = UI.g, p = g.players[+el.dataset.id], scouts = BM.staffOf(g, 'scout');
+  if (!scouts.length) { UI.toast('Aucun scout dans le staff.'); return; }
+  var s = scouts.sort(function (a, b) { return (b.skills.judgeA + b.skills.judgeP) - (a.skills.judgeA + a.skills.judgeP); })[0];
+  var k = BM.addKnowledge(g, p, 18 + s.skills.judgeA);
+  if (k.before < 70 && k.after >= 70) BM.scoutReport(g, p, s);
+  UI.toast(s.name + ' a observé ' + BM.shortName(p) + ' : connu à ' + Math.round(k.after) + '%.');
+  UI.save(); UI.showPlayer(p.id);
+};
+
+// ==================================================================== staff
+UI.staffCard = function () {
+  var g = UI.g;
+  return '<div class="card"><div class="card-h"><h2>Staff</h2><span class="small muted">' + BM.money(BM.staffPayroll(g)) + '/an</span></div>' +
+    (g.staff || []).map(function (s) {
+      var sk = BM.STAFF_ROLES[s.role].skills;
+      return '<div class="rec"><div><b>' + UI.esc(s.name) + '</b> <span class="tag">' + BM.STAFF_ROLES[s.role].l + '</span><p>' +
+        Object.keys(sk).map(function (k) { return sk[k] + ' ' + s.skills[k]; }).join(' · ') + ' · ' + BM.money(s.salary) + '</p></div>' +
+        '<button class="btn sm danger" data-act="fireStaff" data-id="' + s.id + '">Libérer</button></div>';
+    }).join('') +
+    '<p class="hint" style="margin:8px 0">Assistant : développement des joueurs et familiarité tactique. Scouts : précision et vitesse du recrutement. Kiné : moins de blessures.</p>' +
+    '<button class="btn block" data-act="staffMarket">Recruter du staff</button></div>';
+};
+
+UI.actions.staffMarket = function () {
+  var g = UI.g;
+  UI.modal('<div class="modal-h"><h2>Recruter du staff</h2><button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
+    g.staffPool.map(function (s) {
+      var sk = BM.STAFF_ROLES[s.role].skills;
+      return '<div class="rec"><div><b>' + UI.esc(s.name) + '</b> <span class="tag">' + BM.STAFF_ROLES[s.role].l + '</span><p>' +
+        Object.keys(sk).map(function (k) { return sk[k] + ' <b>' + s.skills[k] + '</b>'; }).join(' · ') + ' · ' + BM.money(s.salary) + '/an</p></div>' +
+        '<button class="btn sm primary" data-act="hireStaff" data-id="' + s.id + '">Engager</button></div>';
+    }).join(''));
+};
+UI.actions.hireStaff = function (el) { UI.toast(BM.hireStaff(UI.g, +el.dataset.id)); UI.save(); UI.closeModal(); UI.render(); };
+UI.actions.fireStaff = function (el) { UI.toast(BM.fireStaff(UI.g, +el.dataset.id)); UI.save(); UI.render(); };

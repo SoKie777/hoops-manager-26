@@ -50,6 +50,7 @@ BM.newGame = function (opts) {
   g.board = { confidence: 60 };
   Object.keys(g.players).forEach(function (id) { g.players[id].seasonStartOvr = BM.ovrRaw(g.players[id]); });
   BM.scheduleSeason(g);
+  BM.initScouting(g);
   var team = g.teams[g.userTeam];
   BM.addMessage(g, 'Bienvenue à ' + team.name, 'La direction vous souhaite la bienvenue, ' + g.managerName + '.\n\nObjectif fixé : ' +
     BM.OBJECTIVES[g.objective] + '.\n\nMasse salariale : ' + BM.money(BM.payroll(g, team)) + ' (plafond ' + BM.money(team.wageBudget) +
@@ -239,7 +240,7 @@ BM.afterUserMatch = function (g, fx, m) {
 // Renvoie { state: 'match', fx } si le match de l'utilisateur doit être joué, sinon { state: 'ok' | 'seasonEnd' | 'gameover' }.
 BM.advance = function (g) {
   if (g.gameOver) return { state: 'gameover' };
-  if (g.phase === 'done') return { state: 'seasonEnd' };
+  if (g.phase === 'done') return g.draft && g.draft.done ? { state: 'seasonEnd' } : { state: 'draft' };
   if (g.phase === 'offseason') return { state: 'seasonSummary', summary: g.lastSummary };
   var me = g.teams[g.userTeam];
   if (me.roster.length > BM.ROSTER_MAX) return { state: 'blocked', msg: 'Votre effectif dépasse ' + BM.ROSTER_MAX + ' joueurs. Libérez ou vendez des joueurs.' };
@@ -270,6 +271,7 @@ BM.endDay = function (g) {
   BM.progressPhase(g);
   BM.aiTransfers(g);
   BM.transferOffers(g);
+  BM.scoutDaily(g);
 
   // Fin de mois : sponsors et salaires.
   var date = BM.dateOf(g, g.day + 1);
@@ -277,6 +279,7 @@ BM.endDay = function (g) {
     g.teams.forEach(function (t) {
       t.balance += Math.round(t.wageBudget / 12 - BM.payroll(g, t) / 12);
     });
+    g.teams[g.userTeam].balance -= Math.round(BM.staffPayroll(g) / 12);
     var me = g.teams[g.userTeam];
     BM.addMessage(g, 'Point financier mensuel', 'Solde : ' + BM.money(me.balance) + '. Masse salariale : ' + BM.money(BM.payroll(g, me)) + ' / ' + BM.money(me.wageBudget) + ' par saison.', 'finance');
   }
@@ -317,14 +320,14 @@ BM.train = function (g, team, plan, matchDay) {
       var k = rng.pick(['vit', 'det', 'end', 'for']);
       p.attrs[k] = Math.max(1, p.attrs[k] - 1);
     }
-    var injP = 0.0009 * inten.inj * (p.condition < 60 ? 2 : 1);
+    var injP = 0.0009 * inten.inj * (p.condition < 60 ? 2 : 1) * BM.staffBonus(g, team, 'med');
     if (rng.chance(injP)) {
       p.injury = rng.int(3, 21);
       if (team.id === g.userTeam) BM.addMessage(g, 'Blessure : ' + BM.fullName(p), 'Blessé à l\'entraînement, indisponible environ ' + p.injury + ' jours.', 'medical');
     }
   });
   BM.devDaily(g, team, matchDay);
-  BM.growFamiliarity(team, matchDay ? 0.8 : rest ? 0 : focus.v === 'tactique' ? 1.6 : 0.5);
+  BM.growFamiliarity(team, (matchDay ? 0.8 : rest ? 0 : focus.v === 'tactique' ? 1.6 : 0.5) * BM.staffBonus(g, team, 'tac'));
   if (!rest && !matchDay && focus.v === 'tactique') team.cohesion = Math.min(100, team.cohesion + 1.5);
   else if (!matchDay) team.cohesion = Math.min(100, team.cohesion + 0.3);
 };
@@ -469,9 +472,12 @@ BM.endSeason = function (g) {
   // Retraite des agents libres âgés.
   g.freeAgents = g.freeAgents.filter(function (id) { var p = g.players[id]; if (p.age >= 35) { p.retired = true; return false; } return true; });
 
-  // Draft : un choix de premier et un de second tour par club (les plus faibles choisissent mieux).
-  var prospects = [];
-  g.teams.forEach(function (t) {
+  // Draft : les choix de l'utilisateur ; sans draft jouée (anciennes sauvegardes), deux espoirs générés par club.
+  var prospects = (g.draft && g.draft.picks || []).filter(function (x) { return x.team === g.userTeam; }).map(function (x) {
+    var p = g.players[x.pid];
+    return 'Choix n°' + x.pick + ' : ' + BM.fullName(p) + ' (' + p.pos + ', pot. ' + BM.potDisplay(p) + ')';
+  });
+  if (!g.draft || !g.draft.done) g.teams.forEach(function (t) {
     for (var k = 0; k < 2; k++) {
       var p = BM.genPlayer(g, { quality: (k === 0 ? 9 : 7.5) + (100 - t.rep) / 100 * 2 + g.rng.range(-1.5, 1.5), age: g.rng.int(19, 21), teamId: t.id, years: k === 0 ? 4 : 2 });
       p.contract.salary = k === 0 ? Math.round(g.rng.range(2500, 9000) / 50) * 50 : 1300;
@@ -522,6 +528,9 @@ BM.startNewSeason = function (g) {
     else BM.cleanTactics(g, t);
   });
   Object.keys(g.players).forEach(function (id) { g.players[id].seasonStartOvr = BM.ovrRaw(g.players[id]); });
+  g.draft = null;
+  BM.genDraftClass(g);
+  BM.refreshStaffPool(g);
   BM.addMessage(g, 'Saison ' + g.season + ' : nouvel objectif', 'La direction attend de vous : ' + BM.OBJECTIVES[g.objective] + '.', 'board');
 };
 
@@ -699,6 +708,7 @@ BM.deserialize = function (json) {
   g.rng = new BM.RNG(g.rng.s);
   g.teams.forEach(function (t) { BM.migrateTactics(g, t); });
   Object.keys(g.players).forEach(function (id) { var p = g.players[id]; if (p.seasonStartOvr === undefined) p.seasonStartOvr = BM.ovrRaw(p); });
+  BM.initScouting(g);
   // Migration : abréviations par surnom d'équipe (WAR, THU...).
   if (BM.NBA) g.teams.forEach(function (t) {
     var d = BM.NBA.teams.find(function (x) { return x.code === t.code; });

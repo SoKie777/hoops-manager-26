@@ -2,7 +2,7 @@
 // Lancement : node test/sim.test.js
 var path = require('path');
 var assert = require('assert');
-['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'engine', 'league'].forEach(function (f) {
+['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'engine', 'league'].forEach(function (f) {
   require(path.join(__dirname, '..', 'js', f + '.js'));
 });
 var BM = globalThis.BM;
@@ -38,6 +38,17 @@ for (var s = 0; s < seasons; s++) {
       var me = g.teams[g.userTeam];
       if (me.roster.length > BM.ROSTER_MAX) BM.releasePlayer(g, BM.roster(g, me).sort(function (a, b) { return BM.ovrRaw(a) - BM.ovrRaw(b); })[0].id);
       else { var fa = g.players[g.freeAgents[0]]; me.wageBudget += fa.contract.salary; BM.offerContract(g, fa.id, fa.contract.salary * 2, 1); }
+      continue;
+    }
+    if (r.state === 'draft') {
+      // Draft automatique : le joueur choisit le meilleur potentiel estimé.
+      if (!g.draft) BM.startDraft(g);
+      while (BM.draftAdvance(g)) {
+        var board = g.draftClass.map(function (id) { return g.players[id]; }).sort(function (a, b) { return BM.scoutEstimate(g, b).pot - BM.scoutEstimate(g, a).pot; });
+        BM.draftPlayer(g, board[0].id);
+      }
+      BM.finishDraft(g);
+      assert(g.draft.picks.length === 60, 'draft complète : ' + g.draft.picks.length);
       continue;
     }
     if (r.state === 'seasonEnd') {

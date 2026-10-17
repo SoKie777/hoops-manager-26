@@ -20,6 +20,7 @@ UI.cont = function (fastForward) {
 UI.handleAdvance = function (r) {
   var g = UI.g;
   if (r.state === 'match') UI.preMatch(r.fx);
+  else if (r.state === 'draft') UI.showDraft();
   else if (r.state === 'blocked') UI.toast(r.msg);
   else if (r.state === 'seasonEnd') {
     var summary = BM.endSeason(g);
