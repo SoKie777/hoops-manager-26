@@ -393,6 +393,12 @@ var BM = globalThis.BM = globalThis.BM || {};
         x.fillStyle = 'rgba(255,106,0,' + (0.35 * pulse) + ')';
         x.beginPath(); x.arc(P(p.x), P(p.y), r + s * 1.2, 0, Math.PI * 2); x.fill(); x.restore();
       }
+      // Mode carrière : ton joueur porte un anneau cyan et son nom en permanence.
+      var mine = m.career && m.career.pid === id;
+      if (mine) {
+        x.strokeStyle = '#3bc9db'; x.lineWidth = Math.max(2, s * 0.45);
+        x.beginPath(); x.arc(P(p.x), P(p.y), r + s * 1.1, 0, Math.PI * 2); x.stroke();
+      }
       x.beginPath(); x.arc(P(p.x), P(p.y), r, 0, Math.PI * 2);
       if (side === 0) { x.fillStyle = col; x.fill(); x.strokeStyle = '#fff'; }
       else { x.fillStyle = '#fff'; x.fill(); x.strokeStyle = col; }
@@ -407,7 +413,7 @@ var BM = globalThis.BM = globalThis.BM || {};
         x.fillStyle = '#ffd43b'; x.textAlign = 'center';
         x.fillText('★', P(p.x) + r, P(p.y) - r);
       }
-      if (id === holder) {
+      if (id === holder || mine) {
         x.font = '700 ' + Math.round(1.9 * s) + 'px system-ui, sans-serif';
         x.fillStyle = '#fff'; x.strokeStyle = 'rgba(0,0,0,0.6)'; x.lineWidth = s * 0.4;
         x.strokeText(pl.last, P(p.x), P(p.y) - r - s * 1.3); x.fillText(pl.last, P(p.x), P(p.y) - r - s * 1.3);

@@ -13,6 +13,11 @@ Ouvrir directement `index.html` fonctionne aussi. La partie est sauvegardée aut
 
 ## Contenu
 
+Deux modes de jeu dans la même ligue :
+
+- **Manager** : tu diriges une franchise (effectif, tactique, mercato, draft, direction).
+- **Ma Carrière** (v1.8) : tu es un joueur. Prospect de 19 ans, tu choisis ta voie vers la draft : université NCAA (visibilité maximale, March Madness), Europe (contre des pros, un vrai salaire) ou G League Ignite (meilleure progression). Ensuite la soirée de draft, puis la NBA. Chaque journée a un entraînement (thème, intensité, objectif du coach) et une activité du soir (repos, vidéo, coach perso, fête, famille, rendez-vous, médias, charité…). S'y ajoutent des événements de vie à choix, inspirés de BitLife, et une économie complète : salaire, sponsors à clauses, patrimoine, staff perso, placements. En match, tu choisis ta mentalité, et en direct le jeu s'arrête sur les moments clés de ton match (pick and roll, mismatch, dernier rempart, dernière possession) : ta décision est résolue par le vrai moteur. Viennent ensuite l'interview en zone mixte, les badges, le statut dans l'équipe (du bout de banc à superstar), les échanges à la date limite, la free agency, le déclin et la retraite avec score d'héritage. Une fois retraité, tu peux devenir coach : la même sauvegarde bascule en mode Manager.
+
 - **Ligue** : les 30 effectifs NBA réels de 2026-27, transposés dans des villes africaines avec les surnoms NBA (Yamoussoukro Warriors, Dakar Spurs…). Saison de 58 matchs, puis des playoffs à 8 par conférence : séries au meilleur des 5 matchs, finales au meilleur des 7.
 - **Données réelles** : les attributs sont dérivés des statistiques 2025-26 (2024-25 pour les joueurs blessés). Les contrats sont ceux de 2026-27, avec un plafond salarial de 166 M$. Les noms de famille sont modifiés (une voyelle doublée). Pour regénérer les données : `python -I tools/build_nba.py <dossier_html> js/nba-data.js`.
 - **Gravité** (GSB / GAB / GD) : trois notes, sans ballon, avec ballon et défensive. Chacune vaut une base tirée du profil réel, ajustée par la forme des 5 derniers matchs (notes, adresse à 3 points, points, interceptions et contres). En match, la gravité sans ballon ouvre des espaces, la gravité avec ballon facilite les tirs des coéquipiers, et la gravité défensive dissuade les attaques au cercle et provoque des pertes.
@@ -43,8 +48,11 @@ Ouvrir directement `index.html` fonctionne aussi. La partie est sauvegardée aut
 | `js/league.js` | Calendrier, playoffs, entraînement, mercato, direction, intersaison, sauvegarde |
 | `js/ui.js`, `js/match-ui.js`, `js/main.js` | Interface |
 | `js/analysis.js` | Explications d'après-match (pourquoi on a gagné ou perdu) |
+| `js/career-data.js`, `js/career.js`, `js/career-events.js` | Mode carrière : données, logique, événements de vie |
+| `js/career-match.js`, `js/career-ui.js` | Moments clés en match, interface du mode carrière |
 | `js/portrait.js` | Portraits illustrés des joueurs |
 | `test/sim.test.js` | Simule plusieurs saisons et vérifie que les statistiques sont réalistes |
+| `test/career.test.js` | Carrière complète simulée : prospect, draft, saisons NBA, retraite, reconversion en coach |
 | `test/engine.test.js` | Banc d'essai : des milliers de matchs, cibles NBA chiffrées et détection des tactiques dominantes |
 
 ```bash

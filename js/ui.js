@@ -77,6 +77,7 @@ UI.icon = function (k) {
 UI.render = function () {
   var app = document.getElementById('app');
   if (!UI.g) { app.innerHTML = UI.startScreen(); UI.afterRender(); return; }
+  if (UI.g.mode === 'career') { UI.cRender(); return; }
   var g = UI.g, me = g.teams[g.userTeam];
   // Animation d'entrée seulement au changement d'écran (pas à chaque tri ou réglage).
   var screenKey = UI.tab + '/' + (UI.sub[UI.tab] || '');
@@ -152,17 +153,21 @@ UI.startScreen = function () {
           x.rank + 'e effectif · ' + UI.esc(x.star) + '</small></span></button>';
       }).join('') + '</div>';
   };
+  var mode = UI.startMode || 'manager';
   return '<div class="app" style="padding-bottom:24px">' +
     '<div class="hero">' + UI.ballSvg() + '<h1>Hoops <span>Manager</span> 26</h1><p>Effectifs NBA réels 2026-27, version africaine.</p></div>' +
     '<div class="page">' +
     (hasSave ? '<div class="card"><div class="card-h"><h2>Reprendre</h2></div><button class="btn primary block" data-act="loadSave">Charger la partie sauvegardée</button></div>' : '') +
+    '<div class="card wide modepick"><button data-act="startMode" data-v="manager" class="' + (mode === 'manager' ? 'on' : '') + '"><b>Manager</b><span>Tu diriges une franchise : effectif, tactique, mercato, draft.</span></button>' +
+    '<button data-act="startMode" data-v="career" class="' + (mode === 'career' ? 'on' : '') + '"><b>Ma Carrière</b><span>Tu es un joueur : de prospect de 19 ans à la retraite… puis coach.</span></button></div>' +
+    (mode === 'career' ? UI.careerCreate() :
     '<div class="card" style="display:grid;gap:12px">' +
-    '<h2>Nouvelle carrière</h2>' +
+    '<h2>Nouvelle partie</h2>' +
     '<div class="field"><label for="mgr">Nom du coach</label><input type="text" id="mgr" maxlength="30" value="' + UI.esc(UI.mgrName || '') + '" placeholder="Votre nom"></div>' +
     '<div class="field"><label>Choisissez votre club</label>' + confBlock('E') + confBlock('W') + '</div>' +
     '<p class="small muted" style="margin:0">Objectif de la direction pour <b>' + UI.esc(t.city + ' ' + t.nick) + '</b> : ' + BM.OBJECTIVES[obj] + '.</p>' +
     '<button class="btn primary block" data-act="newGame">Commencer</button>' +
-    '</div>' +
+    '</div>') +
     '<div class="card"><div class="card-h"><h2>Importer</h2></div><p class="small muted" style="margin-top:0">Charger un fichier de sauvegarde exporté (.json).</p>' +
     '<input type="file" accept="application/json,.json" data-change="importFile"></div>' +
     '</div></div>';

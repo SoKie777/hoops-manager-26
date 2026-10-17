@@ -63,7 +63,7 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   // Effets du staff (équipe de l'utilisateur uniquement ; l'IA est neutre).
   BM.staffBonus = function (g, team, kind) {
-    if (!g.staff || team.id !== g.userTeam) return 1;
+    if (!g.staff || !BM.managed(g, team)) return 1;
     var a = BM.staffOf(g, 'assistant')[0], ph = BM.staffOf(g, 'physio')[0];
     if (kind === 'dev') return a ? 0.85 + a.skills.dev / 20 * 0.35 : 0.85;
     if (kind === 'tac') return a ? 0.8 + a.skills.tac / 20 * 0.45 : 0.8;
@@ -95,7 +95,7 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   // ---------------------------------------------------------------- connaissance et estimations
   BM.knowledge = function (g, p) {
-    if (!g.know || p.teamId === g.userTeam) return 100;
+    if (!g.know || g.mode === 'career' || p.teamId === g.userTeam) return 100;
     return g.know[p.id] === undefined ? 25 : g.know[p.id];
   };
 
@@ -162,7 +162,7 @@ var BM = globalThis.BM = globalThis.BM || {};
   };
 
   BM.scoutDaily = function (g) {
-    if (!g.staff) return;
+    if (!g.staff || g.mode === 'career') return;
     BM.staffOf(g, 'scout').forEach(function (s) {
       var a = g.assignments[s.id];
       if (!a) return;
@@ -286,6 +286,7 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   BM.startDraft = function (g) {
     g.draft = { order: BM.draftOrder(g), next: 0, picks: [] };
+    if (g.mode === 'career') return;
     var me = g.draft.order.filter(function (x) { return x.team === g.userTeam; }).map(function (x) { return x.pick; });
     BM.addMessage(g, 'Draft ' + (2026 + g.season), 'La loterie est tirée. Vos choix : n°' + me.join(' et n°') + '. Préparez votre big board !', 'scout');
   };
@@ -311,7 +312,7 @@ var BM = globalThis.BM = globalThis.BM || {};
   // L'IA choisit le meilleur prospect (vraie valeur + bruit) ; s'arrête au choix de l'utilisateur.
   BM.draftAdvance = function (g) {
     var d = g.draft;
-    while (d.next < d.order.length && d.order[d.next].team !== g.userTeam) {
+    while (d.next < d.order.length && (d.order[d.next].team !== g.userTeam || g.mode === 'career')) {
       var avail = g.draftClass.map(function (id) { return g.players[id]; });
       if (!avail.length) { d.next = d.order.length; break; }
       var best = avail.map(function (p) { return { p: p, v: p.pot * 0.7 + BM.ovrRaw(p) * 0.3 + g.rng.gauss(0, 0.8) }; }).sort(function (a, b) { return b.v - a.v; })[0];

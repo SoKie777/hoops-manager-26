@@ -63,6 +63,7 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   // Après chaque match de l'utilisateur : réaction au temps de jeu selon le statut et la personnalité.
   BM.playingTimeMood = function (g, team, fx) {
+    if (!BM.managed(g, team)) return;
     BM.roster(g, team).forEach(function (p) {
       var b = fx.box[p.id];
       if (!b || p.injury > 0 || p.gleague) return;
@@ -90,6 +91,8 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   // Une fois par jour : l'ambiance influe sur la cohésion ; un joueur très mécontent demande à vous parler.
   BM.ecoDaily = function (g) {
+    if (BM.isAllStarDay(g) && !BM.managed(g, BM.myTeam(g))) { BM.allStar(g); return; }
+    if (!BM.managed(g, BM.myTeam(g))) return;
     var me = g.teams[g.userTeam], dyn = BM.dynamics(g, me);
     me.cohesion = BM.clamp(me.cohesion + (dyn.atmosphere - 60) / 250, 20, 100);
     BM.roster(g, me).forEach(function (p) {
@@ -236,7 +239,7 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   BM.allStar = function (g) {
     g.allStarDone = g.season;
-    var me = g.teams[g.userTeam], picked = [];
+    var me = BM.myTeam(g) || { id: -1 }, picked = [];
     ['E', 'W'].forEach(function (c) {
       players(g).filter(function (p) { return g.teams[p.teamId].conf === c && p.stats.gp >= 10; })
         .sort(function (a, b) { return seasonScore(b) - seasonScore(a); }).slice(0, 12)
@@ -269,8 +272,8 @@ var BM = globalThis.BM = globalThis.BM || {};
     })[0];
     var summary = {};
     Object.keys(labels).forEach(function (k) { if (out[k]) summary[labels[k]] = BM.fullName(out[k]) + ' (' + g.teams[out[k].teamId].short + ')'; });
-    summary['Coach de l\'année'] = coy.id === g.userTeam ? g.managerName + ' (vous !)' : 'Coach de ' + coy.name;
-    if (coy.id === g.userTeam) g.board.confidence = BM.clamp(g.board.confidence + 10, 0, 100);
+    summary['Coach de l\'année'] = BM.managed(g, coy) ? g.managerName + ' (vous !)' : 'Coach de ' + coy.name;
+    if (BM.managed(g, coy)) g.board.confidence = BM.clamp(g.board.confidence + 10, 0, 100);
     summary.allNba = allNba.slice(0, 5).map(function (p) { return BM.shortName(p); }).join(', ');
     g.awardsHistory = g.awardsHistory || {};
     g.awardsHistory[g.season] = summary;

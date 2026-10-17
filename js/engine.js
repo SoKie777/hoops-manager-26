@@ -135,6 +135,7 @@ var BM = globalThis.BM = globalThis.BM || {};
         if (self.on[i].indexOf(p.id) >= 0) {
           self.box[p.id].sec += dur;
           var drain = 1.25 * (1.3 - p.attrs.end / 20 * 0.6) * press * paceF;
+          if (self.career && p.id === self.career.pid) drain *= (BM.CAREER_MENT[self.career.ment] || { drain: 1 }).drain * (1 - 0.05 * ((p.badges || {}).moteur || 0));
           self.en[p.id] = Math.max(5, self.en[p.id] - drain * mins);
           var injP = mins * 0.0002 * (self.en[p.id] < 50 ? 2 : 1);
           if (!self.out[p.id] && self.rng.chance(injP)) {
@@ -330,6 +331,11 @@ var BM = globalThis.BM = globalThis.BM || {};
     this.fast = false; this.oreb = false;
     [0, 1].forEach(function (i) { self.mom[i] += (50 - self.mom[i]) * 0.04; });
     var fo = this.firstOpt[o] && this.on[o].indexOf(this.firstOpt[o]) >= 0 && !this.out[this.firstOpt[o]] ? this.firstOpt[o] : null;
+    // Mode carrière : mentalité du joueur et action décidée lors d'un moment clé (possession suivante).
+    var cr = this.career, me = cr ? this.p(cr.pid) : null, meOn = !!(cr && this.on[cr.side].indexOf(cr.pid) >= 0 && !this.out[cr.pid]);
+    var ment = cr ? (BM.CAREER_MENT[cr.ment] || BM.CAREER_MENT.equil) : null, cf = null, cd = null;
+    if (cr && cr.side === o && cr.next) { cf = meOn ? cr.next : null; cr.next = null; }
+    if (cr && cr.side === d && cr.nextDef) { cd = meOn ? cr.nextDef : null; cr.nextDef = null; }
     this.play = { o: o, q: this.q, dur: dur, fast: fast, putback: putback, on: [this.on[0].slice(), this.on[1].slice()], kind: 'none' };
     this.tick(dur);
     if (this.q >= 4) {
@@ -349,8 +355,30 @@ var BM = globalThis.BM = globalThis.BM || {};
       return;
     }
 
+    // Défense décidée par le joueur : tentative d'interception (réussie, faute ou décalage).
+    if (cd && cd.steal) {
+      var victim = rng.weighted(O, function (p) { return Math.pow(a(p, 'drb') + a(p, 'pas'), 2); });
+      if (rng.chance(cd.steal)) {
+        this.stat(victim, 'tov'); this.stat(me, 'stl');
+        this.play.kind = 'tov'; this.play.handler = victim.id; this.play.stealer = me.id;
+        this.addMomentum(d, 8);
+        this.log('play', d, 'Interception de ' + this.name(me) + ' sur ' + this.name(victim) + ' ! Il lit la passe.');
+        this.fast = rng.chance(0.75); this.switchPoss(); cr.result = 'ok';
+        return;
+      }
+      cr.result = 'ko';
+      if (rng.chance(cd.foul || 0)) {
+        this.foul(d, me);
+        this.play.kind = 'foul'; this.play.fouler = me.id;
+        this.log('foul', d, 'Faute de ' + this.name(me) + ' en voulant intercepter.');
+        if (this.teamFouls[d] > 4) { if (this.freeThrows(o, victim, 2)) this.switchPoss(); else this.rebound(o); } else this.oreb = true;
+        return;
+      }
+    }
+
     // Perte de balle.
     var handler = rng.weighted(O, function (p) { return Math.pow(a(p, 'drb') + a(p, 'pas'), 2); });
+    if (cf && rng.chance(0.6)) handler = me;
     if (fo && rng.chance(0.5)) handler = this.p(fo);
     var defSteal = this.avg(D, function (p) { return a(p, 'int') * 0.6 + a(p, 'defE') * 0.4; });
     var tov = 0.142 + 0.006 * (defSteal - (a(handler, 'drb') * 0.5 + a(handler, 'pas') * 0.3 + a(handler, 'qi') * 0.2));
@@ -361,6 +389,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (this.tac[o].pace === 'rapide') tov += 0.01;
     tov -= this.scoreEffect(o) * 0.5;
     if (putback) tov *= 0.4;
+    if (cf) tov = tov * 0.6 + (cf.tov || 0); // action dessinée : moins de pertes, sauf prise de risque
     this.play.handler = handler.id;
     if (rng.chance(BM.clamp(tov, 0.05, 0.26))) {
       this.stat(handler, 'tov');
@@ -380,7 +409,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     }
 
     // Faute défensive hors tir.
-    if (!putback && rng.chance(0.09)) {
+    if (!putback && !cf && rng.chance(0.09)) {
       var fouler = rng.weighted(D, function (p) { return 22 - p.attrs.qi; });
       this.foul(d, fouler);
       this.play.kind = 'foul';
@@ -403,14 +432,19 @@ var BM = globalThis.BM = globalThis.BM || {};
       if (sysO.star && p === starO) use *= sysO.star;
       if (sysO.bigs && (p.pos === 'AF' || p.pos === 'PIV')) use *= sysO.bigs;
       // Usage réaliste : la star prend environ un tiers des tirs quand elle est sur le terrain, pas la moitié.
-      return Math.pow(u, USAGE_EXP) * Math.pow(use, 0.5) * (0.9 + self.grav[p.id].on / 80) * (p.id === fo ? 2.2 : 1);
+      return Math.pow(u, USAGE_EXP) * Math.pow(use, 0.5) * (0.9 + self.grav[p.id].on / 80) * (p.id === fo ? 2.2 : 1) *
+        (p === me ? Math.max(0.2, 1 + ment.u + (cr.usage || 0)) : 1);
     });
+    if (cf) shooter = this.careerShooter(cf, O, me);
+    if (cd && cd.forceShooter && this.on[o].indexOf(cd.forceShooter) >= 0) shooter = this.p(cd.forceShooter);
+    if (cf && cf.fast) fast = true;
     var mm = shooter.id === fo ? this.mismatch(o, fo) : null;
     var type = fast ? (rng.chance(0.8) ? 'rim' : 'three') : putback && rng.chance(0.6) ? 'rim' : this.shotType(shooter, o, d);
     // Menés de 3 dans les dernières secondes : il faut un tir à 3 points.
     if (this.q >= 4 && this.clock <= 24 && this.lead(o) === -3) type = 'three';
     // La 1re option attaque son mismatch : poste bas s'il est intérieur.
     if (mm && mm.val >= 2 && mm.kind === 'int' && !fast && rng.chance(0.6)) type = 'rim';
+    if (cf && cf.type) type = cf.type;
     var df = this.matchup(shooter, o, D);
     this.play.kind = 'shot'; this.play.shooter = shooter.id; this.play.type = type; this.play.made = false;
     var e = function (k) { return a(shooter, k); }, f = function (k) { return a(df, k); };
@@ -456,10 +490,40 @@ var BM = globalThis.BM = globalThis.BM || {};
       this.play.firstOption = true;
     }
     this.play.hot = hot;
+    // Mode carrière : mentalité, badges, décision prise lors d'un moment clé.
+    if (cr) {
+      if (shooter === me) prob += ment.b + this.badgeBonus(me, type);
+      if (meOn && cr.side === o) prob += ment.team;
+      if (meOn && cr.side === d) prob -= ment.def;
+      if (cf) prob += cf.bonus || 0;
+      if (cd) prob += cd.bonus || 0;
+    }
     prob = BM.clamp(prob, 0.12, 0.88);
     // Dernière possession décisive : défense resserrée, tir très disputé.
     if (this.q >= 4 && this.clock <= 24 && this.lead(o) === 0) prob -= 0.12;
     if (heave) { type = 'three'; pts = 3; prob = 0.08; this.play.type = type; }
+
+    // Défense du joueur : passage en force ou tentative de contre décidés lors d'un moment clé.
+    if (cd && (cd.charge || cd.block) && type === 'rim' && !heave) {
+      if (cd.charge && rng.chance(cd.charge)) {
+        this.stat(shooter, 'tov'); this.foul(o, shooter);
+        this.play.kind = 'tov'; this.play.stealer = me.id;
+        this.addMomentum(d, 8);
+        this.log('play', d, 'Passage en force provoqué par ' + this.name(me) + ' !');
+        cr.result = 'ok'; this.switchPoss();
+        return;
+      }
+      if (cd.block && rng.chance(cd.block)) {
+        this.stat(me, 'blk'); this.stat(shooter, 'fga');
+        this.play.blocker = me.id;
+        this.afterShot(o, shooter, false, pts); this.addMomentum(d, 7);
+        this.log('play', d, 'Contre rageur de ' + this.name(me) + ' sur ' + this.name(shooter) + ' !');
+        cr.result = 'ok'; this.rebound(o);
+        return;
+      }
+      cr.result = 'ko';
+      if (rng.chance(0.55)) { var fdm = me; this.foul(d, fdm); prob = Math.min(prob, 0.6); var forcedFoul = true; }
+    }
 
     // Contre.
     if (type === 'rim') {
@@ -478,13 +542,16 @@ var BM = globalThis.BM = globalThis.BM || {};
     }
 
     var foulP = type === 'rim' ? 0.2 : type === 'mid' ? 0.07 : 0.03;
-    var fouled = rng.chance(foulP), made = rng.chance(prob * (fouled ? 0.7 : 1));
-    if (fouled) {
+    if (cf && cf.foulUp) foulP += cf.foulUp;
+    var fouled = forcedFoul || rng.chance(foulP), made = rng.chance(prob * (fouled ? 0.7 : 1));
+    if (fouled && !forcedFoul) {
       var fd = rng.chance(0.6) ? df : rng.pick(D);
       this.foul(d, fd);
       this.play.fouled = true;
     }
     this.afterShot(o, shooter, made, pts);
+    if (cf) cr.result = made ? 'ok' : 'ko';
+    if (cr && shooter === me && made && this.clutch()) cr.clutchMade = (cr.clutchMade || 0) + 1;
     if (made) {
       this.play.made = true;
       this.stat(shooter, 'fga'); this.stat(shooter, 'fgm');
@@ -493,8 +560,10 @@ var BM = globalThis.BM = globalThis.BM || {};
       var astP = (type === 'rim' ? 0.5 : type === 'mid' ? 0.55 : 0.85) + (sysO.ast || 0);
       if (putback) astP = 0.1;
       var passer = null, mates = O.filter(function (p) { return p !== shooter; });
-      if (mates.length && rng.chance(astP)) {
-        passer = rng.weighted(mates, function (p) { return Math.pow(a(p, 'pas'), 2.2); });
+      if (meOn && cr.side === o) astP += ment.ast;
+      if (cf && cf.passer && shooter !== me) { passer = me; this.stat(me, 'ast'); this.play.passer = me.id; }
+      else if (mates.length && rng.chance(astP)) {
+        passer = rng.weighted(mates, function (p) { return Math.pow(a(p, 'pas'), 2.2) * (p === me && ment.ast ? 1.6 : 1); });
         this.stat(passer, 'ast');
         this.play.passer = passer.id;
       }
@@ -554,7 +623,8 @@ var BM = globalThis.BM = globalThis.BM || {};
   };
 
   Match.prototype.step = function () {
-    if (this.finished || this.halftimePending) return [];
+    if (this.finished || this.halftimePending || this.pendingMoment) return [];
+    if (this.career && this.career.live && this.checkMoment()) return [];
     var start = this.events.length;
     this.possession();
     if (this.play) this.play.score = this.score.slice();

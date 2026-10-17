@@ -43,7 +43,7 @@ BM.newPlayer = function (g, fields) {
     listed: false, form: [], recent: [], stats: BM.emptyStats(), career: []
   };
   for (var k in fields) p[k] = fields[k];
-  if (!p.height) p.height = Math.round(BM.POS_HEIGHT[p.pos] + g.rng.gauss(0, 4) + 12); // gabarits NBA
+  if (!p.height) p.height = Math.round(BM.POS_HEIGHT[p.pos] + 2 + g.rng.gauss(0, 4)); // gabarits NBA (meneur ~1,88 m, pivot ~2,13 m)
   g.players[p.id] = p;
   return p;
 };

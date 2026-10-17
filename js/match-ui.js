@@ -80,7 +80,9 @@ UI.tickMatch = function () {
   L.timer = setTimeout(function () {
     UI.flushPending();
     if (L.m.finished) { L.timer = setTimeout(UI.finishMatch, 900); return; }
+    if (L.m.halftimePending && L.m.career) { L.m.resumeAfterHalftime(); UI.toast('Mi-temps : ' + L.m.score[0] + '-' + L.m.score[1] + '. Retour au vestiaire, puis sur le parquet.'); }
     if (L.m.halftimePending) { L.playing = false; UI.renderControls(); UI.openPanel('talk'); return; }
+    if (L.m.pendingMoment) { L.playing = false; UI.renderControls(); UI.openPanel('moment'); if (BM.Juice) { BM.Juice.sound('cheer'); BM.Juice.haptic('heavy'); } return; }
     if (L.panel === 'subs') UI.renderPanel();
     if (L.playing) L.timer = setTimeout(UI.tickMatch, T * (1 - impact));
   }, T * impact);
@@ -157,6 +159,17 @@ UI.renderControls = function () {
   var L = UI.live, m = L.m, u = m.user;
   var el = document.getElementById('m-ctrl');
   if (!el) return;
+  if (m.career) {
+    // Mode carrière : pas de consignes de coach, mais ta mentalité sur le terrain.
+    el.innerHTML = '<div class="btn-row" style="flex-wrap:nowrap">' +
+      '<button class="btn" data-act="mPlay" style="flex:none;width:84px">' + (L.playing ? '⏸ Pause' : '▶ Jouer') + '</button>' +
+      '<div class="seg" style="flex:1">' + [1, 2, 4].map(function (s) { return '<button data-act="mSpeed" data-v="' + s + '" class="' + (L.speed === s ? 'on' : '') + '">x' + s + '</button>'; }).join('') + '</div>' +
+      '<button class="btn" data-act="mSimEnd" title="Simuler la fin du match" style="flex:none;width:44px">⏭</button></div>' +
+      '<div class="seg cment">' + Object.keys(BM.CAREER_MENT).map(function (k) {
+        return '<button data-act="mCMent" data-v="' + k + '" class="' + (m.career.ment === k ? 'on' : '') + '">' + BM.CAREER_MENT[k].l + '</button>';
+      }).join('') + '</div>';
+    return;
+  }
   el.innerHTML = '<div class="btn-row" style="flex-wrap:nowrap">' +
     '<button class="btn" data-act="mPlay" style="flex:none;width:84px">' + (L.playing ? '⏸ Pause' : '▶ Jouer') + '</button>' +
     '<div class="seg" style="flex:1">' + [1, 2, 4].map(function (s) {
@@ -173,6 +186,7 @@ UI.renderControls = function () {
 
 UI.actions.mPlay = function () {
   var L = UI.live;
+  if (L.m.pendingMoment) { UI.openPanel('moment'); return; }
   if (L.m.halftimePending) { UI.openPanel('talk'); return; }
   L.playing = !L.playing;
   UI.renderControls();
@@ -200,6 +214,7 @@ UI.actions.mSimEnd = function () {
   clearTimeout(L.timer);
   UI.flushPending();
   L.playing = false;
+  if (L.m.career) { L.m.career.live = false; L.m.pendingMoment = null; }
   var start = L.m.events.length;
   L.m.simulateAll();
   UI.pushEvents(L.m.events.slice(start));
@@ -210,7 +225,7 @@ UI.actions.mSimEnd = function () {
 UI.openPanel = function (kind) {
   var L = UI.live;
   L.panel = kind;
-  if (kind !== 'talk' && L.playing) { L.playing = false; clearTimeout(L.timer); UI.flushPending(); UI.renderControls(); }
+  if (kind !== 'talk' && kind !== 'moment' && L.playing) { L.playing = false; clearTimeout(L.timer); UI.flushPending(); UI.renderControls(); }
   UI.renderPanel();
 };
 
@@ -218,7 +233,7 @@ UI.actions.mPanel = function (el) { UI.openPanel(el.dataset.v); };
 
 UI.actions.mClosePanel = function () {
   var L = UI.live;
-  if (L.panel === 'talk') return;
+  if (L.panel === 'talk' || L.panel === 'moment') return;
   L.panel = null; L.sel = null;
   document.getElementById('m-panel').innerHTML = '';
 };
@@ -227,7 +242,9 @@ UI.renderPanel = function () {
   var L = UI.live, m = L.m, u = m.user, el = document.getElementById('m-panel');
   if (!el || !L.panel) return;
   var body = '';
-  if (L.panel === 'talk') {
+  if (L.panel === 'moment' && m.pendingMoment) {
+    body = UI.cMomentPanel(m);
+  } else if (L.panel === 'talk') {
     var diff = m.score[u] - m.score[1 - u];
     body = '<div class="modal-h"><h2>Causerie de mi-temps</h2></div>' +
       '<p style="margin:0">' + (diff > 0 ? 'Vous menez de ' + diff + ' point' + (diff > 1 ? 's' : '') + '.' : diff < 0 ? 'Vous êtes menés de ' + (-diff) + ' point' + (diff < -1 ? 's' : '') + '.' : 'Égalité parfaite.') + ' Que dites-vous au vestiaire ?</p>' +
@@ -273,7 +290,7 @@ UI.renderPanel = function () {
       '<h3>Sur le terrain</h3><div class="court">' + onIds.map(function (id) { return row(m.p(id), true); }).join('') + '</div>' +
       '<h3>Banc</h3><div class="court">' + m.roster[u].filter(function (p) { return onIds.indexOf(p.id) < 0; }).map(function (p) { return row(p, false); }).join('') + '</div>';
   }
-  el.innerHTML = '<div class="modal-bg"' + (L.panel === 'talk' ? '' : ' data-act="mBg"') + '><div class="modal" role="dialog" aria-modal="true">' + body + '</div></div>';
+  el.innerHTML = '<div class="modal-bg"' + (L.panel === 'talk' || L.panel === 'moment' ? '' : ' data-act="mBg"') + '><div class="modal" role="dialog" aria-modal="true">' + body + '</div></div>';
 };
 
 UI.actions.mBg = function (el, ev) { if (ev.target === el) UI.actions.mClosePanel(); };
@@ -333,6 +350,7 @@ UI.finishMatch = function () {
   if (L.court) { L.court.destroy(); L.court = null; }
   BM.applyResult(g, fx, m);
   UI.save();
+  if (g.mode === 'career') { UI.cFinishMatch(); return; }
   var u = m.user, won = m.score[u] > m.score[1 - u];
   var mvp = m.mvp ? g.players[m.mvp] : null;
   UI.modalLocked = true;
