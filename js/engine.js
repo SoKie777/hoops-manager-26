@@ -303,14 +303,14 @@ var BM = globalThis.BM = globalThis.BM || {};
       var help = this.avg(D, function (p) { return a(p, 'defI') * 0.5 + a(p, 'ctr') * 0.5; });
       var offR = e('fin') * 0.65 + e('det') * 0.15 + e('for') * 0.2;
       var defR = (f('defI') * 0.5 + f('ctr') * 0.3 + f('for') * 0.2) * 0.6 + help * 0.4;
-      prob = 0.53 + 0.016 * (offR - defR);
+      prob = 0.52 + 0.016 * (offR - defR);
       if (fast) prob += 0.12;
       if (putback) prob += 0.04;
       if (this.tac[d].defense === 'zone') prob -= 0.03;
     } else if (type === 'mid') {
       prob = 0.39 + 0.012 * (e('tirMi') * 0.85 + e('sf') * 0.15 - (f('defE') * 0.7 + f('vit') * 0.3));
     } else {
-      prob = 0.315 + 0.011 * (e('tir3') * 0.85 + e('sf') * 0.15 - (f('defE') * 0.6 + f('vit') * 0.25 + f('det') * 0.15));
+      prob = 0.305 + 0.011 * (e('tir3') * 0.85 + e('sf') * 0.15 - (f('defE') * 0.6 + f('vit') * 0.25 + f('det') * 0.15));
       if (this.tac[d].defense === 'zone') prob += 0.015;
     }
     if (this.tac[d].defense === 'press') prob += 0.015;

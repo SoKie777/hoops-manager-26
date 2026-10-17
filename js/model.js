@@ -81,8 +81,12 @@ BM.playerFromData = function (g, d, teamId) {
     // Sous contrat mais sans statistiques (rookie, longue blessure) : profil estimé d'après le salaire.
     var rookie = d.sal >= 2500 && d.sal <= 16000 && d.yrs >= 2;
     var q = BM.clamp(7.5 + Math.log(d.sal / 1300) / Math.LN2 * 1.1, 6, 15);
-    var p0 = BM.genPlayer(g, { first: first, last: last, quality: q, age: rookie ? g.rng.int(19, 21) : g.rng.int(23, 31), teamId: teamId, salary: d.sal, years: d.yrs });
-    p0.rookie = rookie;
+    var age = d.age || (rookie ? g.rng.int(19, 21) : g.rng.int(23, 31));
+    var p0 = BM.genPlayer(g, { first: first, last: last, quality: q, age: age, pos: d.pos || undefined, teamId: teamId, salary: d.sal, years: d.yrs });
+    p0.rookie = rookie || !!d.pot;
+    BM.calibrate(p0, d);
+    // Potentiel fourni (rookies de 2026) sinon recalculé à partir de la note calibrée.
+    p0.pot = d.pot ? d.pot / 5 : Math.min(19.5, BM.ovrRaw(p0) + BM.growthFor(g, age));
     return p0;
   }
   var attrs = {};
@@ -92,9 +96,40 @@ BM.playerFromData = function (g, d, teamId) {
     gravBase: { off: d.g[0], on: d.g[1], def: d.g[2] },
     real: { pts: d.s[0], reb: d.s[1], ast: d.s[2], stl: d.s[3], blk: d.s[4], gp: d.s[5] }
   });
+  BM.calibrate(p, d);
   p.pot = Math.min(19.5, BM.ovrRaw(p) + BM.growthFor(g, p.age));
   p.contract = d.t ? { salary: d.sal, years: d.yrs } : { salary: BM.askingSalary(p), years: g.rng.int(1, 2) };
   return p;
+};
+
+// Note cible NBA 2K27 (top 100) ou plancher des légendes ; les autres sont plafonnés pour garder la hiérarchie.
+BM.calibrate = function (p, d) {
+  if (d.leg) p.legend = true;
+  if (d.ov) BM.fitOverall(p, d.ov);
+  else if (BM.ovr(p) > BM.NBA.ovrCap) BM.fitOverall(p, BM.NBA.ovrCap);
+};
+
+// Ajuste les attributs pondérés du poste, un point à la fois, jusqu'à la note affichée visée.
+// On renforce d'abord les points forts (Giannis reste un shooteur moyen) et on rabote d'abord les points faibles.
+BM.fitOverall = function (p, target) {
+  var w = BM.POS_WEIGHTS[p.pos], keys = Object.keys(w), orig = Object.assign({}, p.attrs);
+  // Première passe : un attribut ne s'écarte pas de plus de 4 points de son profil réel ; ensuite sans limite.
+  var limit = 4;
+  for (var n = 0; n < 500 && BM.ovr(p) !== target; n++) {
+    var up = BM.ovr(p) < target, best = null, bestScore = -1;
+    keys.forEach(function (k) {
+      var v = p.attrs[k];
+      if (up ? v >= 20 : v <= 1) return;
+      if (Math.abs(v + (up ? 1 : -1) - orig[k]) > limit) return;
+      var score = w[k] * (up ? v : 21 - v);
+      if (score > bestScore) { bestScore = score; best = k; }
+    });
+    if (!best) {
+      if (limit < 20) { limit = 20; continue; }
+      return;
+    }
+    p.attrs[best] += up ? 1 : -1;
+  }
 };
 
 BM.shortName = function (p) { return p.first.charAt(0) + '. ' + p.last; };

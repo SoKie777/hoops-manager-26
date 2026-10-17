@@ -44,14 +44,31 @@ jobs:
           --iconBackgroundColor '#07090d' --iconBackgroundColorDark '#07090d'
           --splashBackgroundColor '#07090d' --splashBackgroundColorDark '#07090d'
 
+      # Numéro de version croissant : chaque build s'installe par-dessus le précédent.
+      - name: Numéro de version
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
+
       - name: Compiler l'APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
-      - name: Renommer l'APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk hoops-manager-26.apk
+      # Signature avec une clé fixe (secrets du dépôt) : même signature à chaque build, donc mise à jour sans désinstaller.
+      - name: Signer l'APK
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/release.p12" --ks-type PKCS12 --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --ks-key-alias hoops --out hoops-manager-26.apk "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --print-certs hoops-manager-26.apk | grep -i "SHA-256"
+          rm -f "$RUNNER_TEMP/release.p12"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -63,5 +80,5 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: Hoops Manager 26 · build ${{ github.run_number }}
-          body: APK de debug généré automatiquement depuis ${{ github.sha }}. À installer sur Android (autoriser les sources inconnues).
+          body: APK signé (version 1.${{ github.run_number }}), généré depuis ${{ github.sha }}. S'installe par-dessus la version précédente en gardant la sauvegarde.
           files: hoops-manager-26.apk

@@ -232,6 +232,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tag.bad { background: var(--bad); color: #fff; }
 .tag.warn { background: var(--warn); color: #1a1300; }
 .tag.good { background: var(--good); color: #062b14; }
+.tag.legend { background: linear-gradient(135deg, #ffe066, #f59f00); color: #2b1700; box-shadow: 0 0 10px rgba(255, 200, 0, 0.45); }
 
 /* ---------------- messages */
 .msg { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: transform 0.2s var(--spring); }

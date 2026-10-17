@@ -46,6 +46,56 @@ TEAMS = {
     'UTA': ('Kampala', 'Jazz', 'KLA', 'W', '#6b3fa0'),
 }
 ALIASES = {'BKN': 'BRK', 'CHA': 'CHO', 'PHX': 'PHO'}
+
+# Notes générales officielles NBA 2K27 (top 100, annonce NBA.com) : servent de cible pour la note du jeu.
+NBA2K27 = """Shai Gilgeous-Alexander 97|Victor Wembanyama 97|Nikola Jokic 97|Luka Doncic 96|Jalen Brunson 96|Giannis Antetokounmpo 96|
+Anthony Edwards 95|Cade Cunningham 94|Stephen Curry 93|Kevin Durant 93|Kawhi Leonard 93|Jayson Tatum 93|Donovan Mitchell 93|
+Karl-Anthony Towns 93|Tyrese Maxey 92|LeBron James 91|Jaylen Brown 91|Joel Embiid 91|Devin Booker 91|Tyrese Haliburton 90|
+Anthony Davis 90|Jamal Murray 89|Scottie Barnes 88|OG Anunoby 88|Deni Avdija 88|Austin Reaves 88|Paolo Banchero 87|
+Jalen Johnson 87|Bam Adebayo 87|Pascal Siakam 87|James Harden 87|Evan Mobley 87|Alperen Sengun 87|Stephon Castle 87|
+Trae Young 87|Kyrie Irving 87|Cooper Flagg 87|Lauri Markkanen 86|LaMelo Ball 86|Jaren Jackson Jr. 86|Amen Thompson 86|
+Chet Holmgren 86|Damian Lillard 86|Jalen Duren 85|Jalen Williams 85|Jimmy Butler 85|Trey Murphy III 85|Franz Wagner 85|
+Michael Porter Jr. 85|Zion Williamson 85|Dylan Harper 85|Jaden McDaniels 85|Ausar Thompson 85|Tyler Herro 85|Domantas Sabonis 85|
+Jarrett Allen 85|Brandon Miller 85|De'Aaron Fox 84|Rudy Gobert 84|Ja Morant 84|Brandon Ingram 84|Josh Giddey 84|Norman Powell 84|
+Darius Garland 84|Desmond Bane 84|Kon Knueppel 84|Ivica Zubac 84|Mikal Bridges 84|Keyonte George 84|Nickeil Alexander-Walker 83|
+Derrick White 83|Aaron Gordon 83|Julius Randle 83|CJ McCollum 83|VJ Edgecombe 83|Alex Sarr 83|DeMar DeRozan 83|Paul George 82|
+Josh Hart 82|Naz Reid 82|Jrue Holiday 82|Isaiah Hartenstein 82|Ajay Mitchell 82|Dillon Brooks 82|Payton Pritchard 82|Zach LaVine 82|
+RJ Barrett 82|Dejounte Murray 82|Donovan Clingan 82|Immanuel Quickley 82|Cason Wallace 81|Matas Buzelis 81|Alex Caruso 81|
+Dyson Daniels 81|Ayo Dosunmu 81|Shaedon Sharpe 81|Onyeka Okongwu 81|Devin Vassell 81|Tobias Harris 81|Walker Kessler 81"""
+# Membres du Top 75 de la NBA encore en activité : note minimale de 85.
+TOP75_ACTIVE = ['LeBron James', 'Stephen Curry', 'Kevin Durant', 'Giannis Antetokounmpo', 'James Harden', 'Russell Westbrook',
+                'Chris Paul', 'Kawhi Leonard', 'Damian Lillard', 'Anthony Davis']
+NAME_CAP = 80  # note maximale des joueurs hors top 100 2K27
+
+# Rookies 2026 : poste, âge, note (2K27 officielle, bonus pour la Summer League / présaison) et potentiel affiché.
+ROOKIES = {
+    'AJ Dybantsa': ('AIL', 19, 79, 95),
+    'Darryn Peterson': ('ARR', 19, 79, 95),
+    'Cameron Boozer': ('AF', 19, 80, 93),       # 2K 79 + 1re équipe Summer League
+    'Caleb Wilson': ('AF', 20, 82, 94),         # 2K 77 + 23,5 pts en Summer League (35 pts au 1er match)
+    'Yaxel Lendeborg': ('AF', 24, 81, 86),      # champion NCAA, MVP Summer League, titulaire en présaison
+    'Keaton Wagler': ('ARR', 19, 75, 88),
+    'Darius Acuff Jr.': ('MEN', 19, 75, 88),
+    'Mikel Brown Jr.': ('MEN', 20, 74, 87),
+    'Kingston Flemings': ('MEN', 19, 74, 87),
+    'Morez Johnson Jr.': ('AF', 20, 73, 85),
+    'Brayden Burries': ('ARR', 20, 76, 87),     # 2K 73 + 1re équipe Summer League
+    'Meleek Thomas': ('ARR', 20, 74, 85),       # 1re équipe Summer League
+}
+
+
+def norm(name):
+    n = unicodedata.normalize('NFD', name)
+    n = ''.join(c for c in n if unicodedata.category(c) != 'Mn').lower()
+    return re.sub(r'[^a-z ]', '', n.replace('-', ' ')).strip()
+
+
+TARGETS = {}
+for item in NBA2K27.replace('\n', '').split('|'):
+    nm, ov = item.rsplit(' ', 1)
+    TARGETS[norm(nm)] = int(ov)
+LEGENDS = set(norm(n) for n in TOP75_ACTIVE)
+ROOKIE_INFO = dict((norm(k), v) for k, v in ROOKIES.items())
 POS = {'PG': 'MEN', 'SG': 'ARR', 'SF': 'AIL', 'PF': 'AF', 'C': 'PIV'}
 VOWELS = 'aeiouyAEIOUYàâäéèêëîïôöùûüáíóúýčćšžđ'
 
@@ -236,28 +286,54 @@ def attrs_for(m):
 
 ATTR_KEYS = ['tir3', 'tirMi', 'fin', 'lf', 'pas', 'drb', 'reb', 'defE', 'defI', 'ctr', 'int', 'qi', 'sf', 'act', 'lead', 'vit', 'det', 'for', 'end']
 
+def target_for(name):
+    """Note cible : 2K27 si le joueur est dans le top 100, plancher 85 pour les légendes, sinon plafond."""
+    k = norm(name)
+    ov = TARGETS.get(k)
+    if k in LEGENDS:
+        ov = max(85, ov or 85)
+    return ov
+
+
 result = []
 seen = set()
+matched = set()
 for m in players:
     a, gv = attrs_for(m)
     c = contracts.get(m['id'])
     team = c['team'] if c else None
-    if not c and m['mp'] < 300:
+    if not c and m['mp'] < 300 and norm(m['name']) not in LEGENDS:
         continue  # agents libres anecdotiques
+    ov = target_for(m['name'])
+    if ov:
+        matched.add(norm(m['name']))
     result.append({
         'n': double_vowel(m['name']), 'age': m['age'], 'pos': m['pos'], 't': team,
         'sal': c['salary'] if c else None, 'yrs': c['years'] if c else None,
         'a': [a[k] for k in ATTR_KEYS], 'g': [gv['off'], gv['on'], gv['def']], 's': m['stats'],
+        'ov': ov, 'leg': norm(m['name']) in LEGENDS or None,
     })
     seen.add(m['id'])
 
 # Joueurs sous contrat sans statistiques 2025-26 (rookies, blessés longue durée) : profil générique selon le salaire.
 rookies = [(pid, c) for pid, c in contracts.items() if pid not in seen]
 for pid, c in rookies:
-    result.append({'n': double_vowel(c['name']), 'age': None, 'pos': None, 't': c['team'], 'sal': c['salary'], 'yrs': c['years'], 'a': None, 'g': None, 's': None})
+    ov = target_for(c['name'])
+    if ov:
+        matched.add(norm(c['name']))
+    rk = ROOKIE_INFO.get(norm(c['name']))
+    if rk:
+        matched.add(norm(c['name']))
+    result.append({'n': double_vowel(c['name']), 'age': rk[1] if rk else None, 'pos': rk[0] if rk else None, 't': c['team'],
+                   'sal': c['salary'], 'yrs': c['years'], 'a': None, 'g': None, 's': None,
+                   'ov': rk[2] if rk else ov, 'pot': rk[3] if rk else None, 'leg': norm(c['name']) in LEGENDS or None})
+
+missing = sorted(set(TARGETS) | LEGENDS | set(ROOKIE_INFO))
+print('notes 2K27 appliquées :', len(matched), '| introuvables :', [k for k in missing if k not in matched])
 
 teams = [{'code': k, 'city': v[0], 'nick': v[1], 'short': v[2], 'conf': v[3], 'color': v[4]} for k, v in TEAMS.items()]
-data = {'season': '2026-27', 'source': 'Basketball-Reference (stats 2025-26, contrats 2026-27)', 'attrKeys': ATTR_KEYS, 'teams': teams, 'players': result}
+data = {'season': '2026-27', 'source': 'Basketball-Reference (stats 2025-26, contrats 2026-27), notes NBA 2K27', 'attrKeys': ATTR_KEYS,
+        'ovrCap': NAME_CAP, 'teams': teams, 'players': result}
 with open(OUT, 'w', encoding='utf-8') as f:
     f.write('// Généré par tools/build_nba.py — ne pas modifier à la main.\n')
     f.write('var BM = globalThis.BM = globalThis.BM || {};\nBM.NBA = ')

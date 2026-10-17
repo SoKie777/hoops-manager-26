@@ -53,7 +53,9 @@ UI.statusTags = function (p) {
   if (p.injury > 0) t += '<span class="tag bad">Blessé ' + p.injury + 'j</span>';
   if (p.listed) t += '<span class="tag warn">Transférable</span>';
   if (p.teamId !== null && p.contract.years <= 1) t += '<span class="tag">Fin de contrat</span>';
-  if (p.age <= 19) t += '<span class="tag good">Espoir</span>';
+  if (p.legend) t += '<span class="tag legend">Légende</span>';
+  if (p.rookie) t += '<span class="tag good">Rookie</span>';
+  else if (p.age <= 19) t += '<span class="tag good">Espoir</span>';
   return t;
 };
 UI.per = function (p, k) { return p.stats.gp ? (p.stats[k] / p.stats.gp).toFixed(1) : '-'; };
