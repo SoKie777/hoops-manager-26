@@ -20,7 +20,7 @@ UI.preMatch = function (fx) {
     '<div class="t">' + UI.teamBadge(a) + UI.esc(a.name) + '<span class="small muted">Note ' + avgOvr(a) + '</span></div></div></div>' +
     '<div class="card"><h3 style="margin-bottom:6px">Rapport de l\'adversaire</h3>' +
     '<p class="small" style="margin:0">' + UI.esc(opp.name) + ' (' + opp.record.w + 'V-' + opp.record.l + 'D) joue un rythme <b>' + label('pace', opp.tactics.pace).toLowerCase() +
-    '</b>, une attaque <b>' + label('focus', opp.tactics.focus).toLowerCase() + '</b> et une défense <b>' + label('defense', opp.tactics.defense).toLowerCase() + '</b>.</p></div>' +
+    '</b>, un système <b>' + label('system', opp.tactics.system) + '</b> et une défense <b>' + label('defense', opp.tactics.defense) + '</b>.</p></div>' +
     '<div class="card"><h3 style="margin-bottom:6px">Votre cinq</h3>' +
     (starters.length ? starters.map(function (p) {
       return '<div class="attr"><span><span class="pos">' + p.pos + '</span> ' + UI.esc(BM.shortName(p)) + '</span><span>' + UI.ovrBadge(BM.ovr(p)) + ' <span class="muted small">' + Math.round(p.condition) + '%</span></span></div>';
@@ -251,11 +251,11 @@ UI.renderPanel = function () {
   } else if (L.panel === 'tactic') {
     var t = m.tac[u], O = BM.TACTIC_OPTIONS;
     var seg = function (f) {
-      return '<div class="field"><label>' + { pace: 'Rythme', focus: 'Attaque', defense: 'Défense' }[f] + '</label><div class="seg">' + O[f].map(function (o) {
+      return '<div class="field"><label>' + { pace: 'Rythme', system: 'Système', defense: 'Défense' }[f] + '</label><div class="seg">' + O[f].map(function (o) {
         return '<button data-act="mTactic" data-f="' + f + '" data-v="' + o.v + '" class="' + (t[f] === o.v ? 'on' : '') + '">' + o.l + '</button>';
       }).join('') + '</div></div>';
     };
-    body = '<div class="modal-h"><h2>Consignes</h2><button class="btn sm x" data-act="mClosePanel">Fermer</button></div>' + seg('pace') + seg('focus') + seg('defense');
+    body = '<div class="modal-h"><h2>Consignes</h2><button class="btn sm x" data-act="mClosePanel">Fermer</button></div>' + seg('pace') + seg('system') + seg('defense');
   } else {
     var row = function (p, onCourt) {
       var b = m.box[p.id], en = Math.round(m.en[p.id]);

@@ -84,16 +84,9 @@ BM.TACTIC_OPTIONS = {
     { v: 'normal', l: 'Normal', d: 'Rythme équilibré.' },
     { v: 'rapide', l: 'Rapide', d: 'Transition, plus de possessions, plus de pertes et de fatigue.' }
   ],
-  focus: [
-    { v: 'interieur', l: 'Intérieur', d: 'Attaque du cercle et jeu poste bas.' },
-    { v: 'equilibre', l: 'Équilibré', d: 'Prendre ce que la défense donne.' },
-    { v: 'exterieur', l: 'Extérieur', d: 'Spacing et tirs à 3 points.' }
-  ],
-  defense: [
-    { v: 'homme', l: 'Individuelle', d: 'Défense standard homme à homme.' },
-    { v: 'zone', l: 'Zone 2-3', d: 'Protège la raquette, concède des tirs extérieurs.' },
-    { v: 'press', l: 'Press', d: 'Provoque des pertes, épuise les deux équipes, laisse des brèches.' }
-  ]
+  // system et defense sont complétés par js/tactics.js (systèmes et schémas réels).
+  system: [],
+  defense: []
 };
 
 // Entraînement : inspiré des "match_preparation" de FM26 (focus + intensité + bandes de progression).

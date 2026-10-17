@@ -4,11 +4,6 @@ var BM = globalThis.BM = globalThis.BM || {};
 (function () {
   var QUARTER = BM.QUARTER_MIN * 60, OVERTIME = 300, REGULATION = 4 * QUARTER;
   var PACE_SEC = { lent: 16, normal: 14, rapide: 12 };
-  var FOCUS_MUL = {
-    interieur: { rim: 1.35, mid: 1.0, three: 0.7 },
-    equilibre: { rim: 1, mid: 1, three: 1 },
-    exterieur: { rim: 0.8, mid: 0.85, three: 1.45 }
-  };
   var POS_ORDER = { MEN: 0, ARR: 1, AIL: 2, AF: 3, PIV: 4 };
 
   function emptyBox() {
@@ -32,6 +27,9 @@ var BM = globalThis.BM = globalThis.BM || {};
       r.forEach(function (p) { self.en[p.id] = p.condition; self.box[p.id] = emptyBox(); self.lastSub[p.id] = 0; self.grav[p.id] = BM.gravity(p); });
     });
     this.on = [this.startingFive(0), this.startingFive(1)];
+    this.edge = [0, 1].map(function (i) { return BM.tacticEdge(g, self.side[i]); });
+    this.role = {};
+    [0, 1].forEach(function (i) { self.roster[i].forEach(function (p) { self.role[p.id] = BM.ROLES[BM.roleOf(self.side[i], p)]; }); });
     this.mom = [50, 50];          // jauge de momentum (0-100) par équipe
     this.heat = {};               // série en cours de chaque joueur (≥ 3 : en feu)
     this.firstOpt = [null, null]; // 1re option offensive choisie en direct par le coach
@@ -210,7 +208,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       var dr = rng.weighted(D, function (p) { return Math.pow(rv(p), 2.2); });
       this.stat(dr, 'dreb');
       if (this.play) this.play.reb = { id: dr.id, off: false };
-      var tr = { lent: 0.05, normal: 0.1, rapide: 0.2 }[this.tac[d].pace];
+      var tr = { lent: 0.05, normal: 0.1, rapide: 0.2 }[this.tac[d].pace] + (BM.SYSTEMS[this.tac[d].system].transition || 0);
       this.fast = rng.chance(tr);
       this.switchPoss();
     }
@@ -221,9 +219,13 @@ var BM = globalThis.BM = globalThis.BM || {};
     var rim = Math.pow(Math.max(1, e('fin') * 0.7 + e('det') * 0.3 - 4), 1.3);
     var mid = Math.pow(Math.max(1, e('tirMi') - 3), 1.1) * 0.45;
     var three = Math.pow(Math.max(0.3, e('tir3') - 6), 1.6) * 0.95;
-    var f = FOCUS_MUL[this.tac[o].focus] || FOCUS_MUL.equilibre;
-    rim *= f.rim; mid *= f.mid; three *= f.three;
-    if (this.tac[d].defense === 'zone') { rim *= 0.85; three *= 1.2; }
+    var f = BM.SYSTEMS[this.tac[o].system].shot, rs = (this.role[sh.id] && this.role[sh.id].shot) || {};
+    rim *= f.rim * (rs.rim || 1); mid *= f.mid * (rs.mid || 1); three *= f.three * (rs.three || 1);
+    var sch = this.tac[d].defense;
+    if (sch === 'zone') { rim *= 0.85; three *= 1.2; }
+    if (sch === 'drop') { rim *= 0.9; mid *= 1.2; }
+    if (sch === 'switch') { three *= 0.9; }
+    if (sch === 'blitz') { three *= 1.1; }
     // Gravité défensive adverse : dissuade d'attaquer le cercle.
     rim *= BM.clamp(1 - (this.avgGrav(d, 'def') - 11) * 0.025, 0.75, 1.2);
     var r = this.rng.next() * (rim + mid + three);
@@ -286,6 +288,8 @@ var BM = globalThis.BM = globalThis.BM || {};
     this.rotate(0); this.rotate(1);
     var O = this.lineup(o), D = this.lineup(d);
     var pace = PACE_SEC[this.tac[o].pace] || PACE_SEC.normal;
+    var sysO = BM.SYSTEMS[this.tac[o].system], sch = this.tac[d].defense;
+    if (sysO.pace) pace = Math.min(pace, sysO.pace);
     var dur = this.oreb ? rng.range(4, 11) : this.fast ? rng.range(3, 7) : BM.clamp(rng.gauss(pace, 3.5), 5, 24);
     if (dur >= this.clock) dur = this.clock;
     var fast = this.fast, putback = this.oreb;
@@ -303,6 +307,8 @@ var BM = globalThis.BM = globalThis.BM || {};
     var defSteal = this.avg(D, function (p) { return a(p, 'int') * 0.6 + a(p, 'defE') * 0.4; });
     var tov = 0.13 + 0.006 * (defSteal - (a(handler, 'drb') * 0.5 + a(handler, 'pas') * 0.3 + a(handler, 'qi') * 0.2));
     if (this.tac[d].defense === 'press') tov += 0.035;
+    if (this.tac[d].defense === 'blitz') tov += 0.025;
+    tov += (sysO.tov || 0) - this.edge[o].off * 0.3 + this.edge[d].def * 0.3;
     tov += (this.avgGrav(d, 'def') - 11) * 0.002;
     if (this.tac[o].pace === 'rapide') tov += 0.01;
     if (putback) tov *= 0.4;
@@ -341,9 +347,13 @@ var BM = globalThis.BM = globalThis.BM || {};
     }
 
     // Tir.
+    var starO = O.slice().sort(function (x, y) { return BM.ovrRaw(y) - BM.ovrRaw(x); })[0];
     var shooter = rng.weighted(O, function (p) {
       var u = a(p, 'fin') * 0.35 + a(p, 'tirMi') * 0.2 + a(p, 'tir3') * 0.3 + a(p, 'drb') * 0.15;
-      return Math.pow(u, 2.2) * (0.7 + self.grav[p.id].on / 30) * (p.id === fo ? 2.2 : 1);
+      var rl = self.role[p.id], use = rl ? rl.usage : 1;
+      if (sysO.star && p === starO) use *= sysO.star;
+      if (sysO.bigs && (p.pos === 'AF' || p.pos === 'PIV')) use *= sysO.bigs;
+      return Math.pow(u, 2.2) * use * (0.7 + self.grav[p.id].on / 30) * (p.id === fo ? 2.2 : 1);
     });
     var mm = shooter.id === fo ? this.mismatch(o, fo) : null;
     var type = fast ? (rng.chance(0.8) ? 'rim' : 'three') : putback && rng.chance(0.6) ? 'rim' : this.shotType(shooter, o, d);
@@ -368,6 +378,13 @@ var BM = globalThis.BM = globalThis.BM || {};
       if (this.tac[d].defense === 'zone') prob += 0.015;
     }
     if (this.tac[d].defense === 'press') prob += 0.015;
+    if (sch === 'drop') prob += type === 'rim' ? -0.025 : type === 'mid' ? 0.025 : 0;
+    if (sch === 'switch' && type === 'three') prob -= 0.015;
+    if (sch === 'blitz' && type === 'three') prob += 0.02;
+    prob += this.edge[o].off - this.edge[d].def;
+    var dr = this.role[df.id];
+    if (dr && dr.perimeter && type !== 'rim') prob -= dr.perimeter;
+    if (type === 'rim' && D.some(function (p) { return self.role[p.id] && self.role[p.id].rim; })) prob -= 0.015;
     // Gravité : l'espace créé par les coéquipiers sans ballon, le porteur qui aspire les aides, le défenseur qui dissuade.
     var spacing = this.avg(O.filter(function (p) { return p !== shooter; }), function (p) { return self.grav[p.id].off; }) || 11;
     prob += (spacing - 11) * (type === 'three' ? 0.002 : 0.004);
@@ -417,7 +434,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       this.stat(shooter, 'fga'); this.stat(shooter, 'fgm');
       if (pts === 3) { this.stat(shooter, 'tpa'); this.stat(shooter, 'tpm'); }
       this.addPoints(o, shooter, pts);
-      var astP = type === 'rim' ? 0.5 : type === 'mid' ? 0.55 : 0.85;
+      var astP = (type === 'rim' ? 0.5 : type === 'mid' ? 0.55 : 0.85) + (sysO.ast || 0);
       if (putback) astP = 0.1;
       var passer = null, mates = O.filter(function (p) { return p !== shooter; });
       if (mates.length && rng.chance(astP)) {

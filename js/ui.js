@@ -6,7 +6,8 @@ var UI = BM.UI = {
   sub: { tactics: 'plan', comp: 'table', market: 'fa' },
   sort: { key: 'ovr', dir: -1 },
   marketPos: '',
-  actions: {}
+  actions: {},
+  changes: {}
 };
 
 // ==================================================================== utilitaires
@@ -432,7 +433,7 @@ UI.actions.sendExtend = function (el) {
 
 // ==================================================================== tactique & entraînement
 UI.tab_tactics = function () {
-  var html = UI.subTabs('tactics', [['plan', 'Plan de jeu'], ['rotation', 'Rotation'], ['training', 'Entraînement']]);
+  var html = UI.subTabs('tactics', [['plan', 'Plan de jeu'], ['roles', 'Rôles'], ['rotation', 'Rotation'], ['training', 'Entraînement']]);
   return html + UI['tactics_' + UI.sub.tactics]();
 };
 
@@ -446,10 +447,22 @@ UI.tactics_plan = function () {
   var g = UI.g, me = g.teams[g.userTeam], t = me.tactics, O = BM.TACTIC_OPTIONS;
   var roster = BM.roster(g, me).sort(function (a, b) { return BM.POSITIONS.indexOf(a.pos) - BM.POSITIONS.indexOf(b.pos) || BM.ovrRaw(b) - BM.ovrRaw(a); });
   var slots = ['Meneur', 'Arrière', 'Ailier', 'Ailier fort', 'Pivot'];
-  return '<div class="card" style="display:grid;gap:12px"><h2>Style de jeu</h2>' +
-    '<div class="field"><label>Rythme</label>' + UI.seg('pace', O.pace, t.pace) + '</div>' +
-    '<div class="field"><label>Orientation offensive</label>' + UI.seg('focus', O.focus, t.focus) + '</div>' +
-    '<div class="field"><label>Défense</label>' + UI.seg('defense', O.defense, t.defense) + '</div></div>' +
+  var bt = BM.bestTactic(g, me);
+  var card = function (field, map, kind, fitFn, current) {
+    return Object.keys(map).map(function (id) {
+      var fit = fitFn(g, me, id), fam = Math.round(BM.familiarity(me, kind, id)), on = id === current;
+      return '<button class="tac-card' + (on ? ' on' : '') + '" data-act="setTactic" data-f="' + field + '" data-v="' + id + '">' +
+        '<span class="tac-h"><b>' + UI.esc(map[id].l) + '</b>' + (id === bt[field] ? '<span class="tag good">Conseillé</span>' : '') + '</span>' +
+        '<span class="tac-d">' + UI.esc(map[id].d) + '</span>' +
+        '<span class="tac-m"><span>Adéquation</span>' + UI.bar(fit) + '<em>' + fit + '</em></span>' +
+        '<span class="tac-m"><span>Familiarité</span>' + UI.bar(fam) + '<em>' + fam + '</em></span></button>';
+    }).join('');
+  };
+  return '<div class="card"><div class="card-h"><h2>Système offensif</h2><span class="small muted">Adéquation = effectif vs reste de la NBA</span></div>' +
+    '<div class="tac-grid">' + card('system', BM.SYSTEMS, 'off', BM.systemFit, t.system) + '</div></div>' +
+    '<div class="card"><div class="card-h"><h2>Schéma défensif</h2></div><div class="tac-grid">' + card('defense', BM.SCHEMES, 'def', BM.schemeFit, t.defense) + '</div>' +
+    '<p class="hint" style="margin:10px 0 0">La familiarité monte avec les matchs et l\'entraînement « Tactique » ; changer de système repart d\'une familiarité basse.</p></div>' +
+    '<div class="card" style="display:grid;gap:10px"><h2>Rythme</h2>' + UI.seg('pace', O.pace, t.pace) + '</div>' +
     '<div class="card" style="display:grid;gap:10px"><div class="card-h" style="margin:0"><h2>Cinq de départ</h2><button class="btn sm" data-act="autoTactics">Auto</button></div>' +
     slots.map(function (label, i) {
       return '<div class="field"><label>' + label + '</label><select data-change="starter" data-i="' + i + '">' +
@@ -458,6 +471,44 @@ UI.tactics_plan = function () {
             p.pos + ' · ' + UI.esc(BM.shortName(p)) + ' (' + BM.ovr(p) + ')' + (p.injury > 0 ? ' – blessé' : '') + '</option>';
         }).join('') + '</select></div>';
     }).join('') + '</div>';
+};
+
+UI.stars = function (n) {
+  var full = Math.floor(n), half = n - full >= 0.5;
+  return '<span class="stars">' + '★'.repeat(full) + (half ? '<i>★</i>' : '') + '<s>' + '★'.repeat(5 - full - (half ? 1 : 0)) + '</s></span>';
+};
+
+UI.tactics_roles = function () {
+  var g = UI.g, me = g.teams[g.userTeam], t = me.tactics, sys = BM.SYSTEMS[t.system];
+  BM.ensureRoles(g, me);
+  var mins = t.minutes || {};
+  var roster = BM.roster(g, me).sort(function (a, b) { return (mins[b.id] || 0) - (mins[a.id] || 0); });
+  return '<div class="card"><div class="card-h"><h2>Rôles</h2><button class="btn sm" data-act="autoRoles">Auto</button></div>' +
+    '<p class="hint" style="margin:0 0 8px">Rôles clés du ' + UI.esc(sys.l) + ' : ' + sys.roles.map(function (r) { return UI.esc(BM.ROLES[r].l); }).join(', ') +
+    '. Le rôle oriente les tirs, le volume de jeu et l\'impact défensif.</p>' +
+    roster.map(function (p) {
+      var cur = t.roles[p.id], stars = BM.roleStars(p, cur), bestR = BM.bestRole(p), key = sys.roles.indexOf(cur) >= 0;
+      return '<div class="role-row"><div><span class="pos">' + p.pos + '</span> <b>' + UI.esc(BM.shortName(p)) + '</b> ' + UI.ovrBadge(BM.ovr(p)) +
+        '<div class="small muted">' + UI.stars(stars) + (key ? ' <span class="tag good">Clé du système</span>' : '') +
+        (bestR !== cur ? ' · conseillé : ' + UI.esc(BM.ROLES[bestR].l) : '') + '</div></div>' +
+        '<select data-change="role" data-id="' + p.id + '" aria-label="Rôle de ' + UI.esc(BM.shortName(p)) + '">' + Object.keys(BM.ROLES).map(function (r) {
+          return '<option value="' + r + '"' + (r === cur ? ' selected' : '') + '>' + UI.esc(BM.ROLES[r].l) + ' (' + BM.roleStars(p, r) + '★)</option>';
+        }).join('') + '</select></div>';
+    }).join('') + '</div>';
+};
+
+UI.changes.role = function (el) {
+  var t = UI.g.teams[UI.g.userTeam].tactics;
+  t.roles[+el.dataset.id] = el.value;
+  UI.save(); UI.render();
+};
+
+UI.actions.autoRoles = function () {
+  var me = UI.g.teams[UI.g.userTeam];
+  me.tactics.roles = {};
+  BM.ensureRoles(UI.g, me);
+  UI.toast('Rôles attribués selon les profils.');
+  UI.save(); UI.render();
 };
 
 UI.tactics_rotation = function () {
@@ -504,7 +555,12 @@ UI.tactics_training = function () {
 };
 
 UI.actions.setTactic = function (el) {
-  UI.g.teams[UI.g.userTeam].tactics[el.dataset.f] = el.dataset.v;
+  var me = UI.g.teams[UI.g.userTeam];
+  if (me.tactics[el.dataset.f] !== el.dataset.v && (el.dataset.f === 'system' || el.dataset.f === 'defense')) {
+    var fam = BM.familiarity(me, el.dataset.f === 'system' ? 'off' : 'def', el.dataset.v);
+    UI.toast(fam < 60 ? 'Nouveau système : familiarité ' + Math.round(fam) + '. Travaillez-le à l\'entraînement (Tactique).' : 'Système adopté.');
+  }
+  me.tactics[el.dataset.f] = el.dataset.v;
   UI.save(); UI.render();
 };
 
@@ -519,7 +575,7 @@ UI.actions.autoTactics = function () {
   UI.save(); UI.render();
 };
 
-UI.changes = {};
+
 UI.changes.starter = function (el) {
   var t = UI.g.teams[UI.g.userTeam].tactics, i = +el.dataset.i, id = el.value ? +el.value : null;
   var prev = t.starters.indexOf(id);

@@ -21,7 +21,7 @@ BM.newGame = function (opts) {
     var team = {
       id: i, code: t.code, name: t.city + ' ' + t.nick, city: t.city, nick: t.nick, short: t.short, conf: t.conf, color: t.color, rep: 50,
       roster: [], record: BM.emptyRecord(), cohesion: 55,
-      tactics: { pace: 'normal', focus: 'equilibre', defense: 'homme', starters: [], minutes: {} },
+      tactics: { pace: 'normal', system: 'pnr', defense: 'drop', starters: [], minutes: {}, roles: {} },
       titles: 0
     };
     byCode[t.code] = team;
@@ -43,7 +43,8 @@ BM.newGame = function (opts) {
     t.balance = Math.round(15000 + t.rep * 200);
     BM.fillRoster(g, t);
     BM.autoTactics(g, t);
-    if (t.id !== g.userTeam) BM.aiTacticStyle(g, t);
+    // Chaque club (y compris le vôtre au départ) démarre avec le système qui lui correspond le mieux.
+    BM.aiTacticStyle(g, t);
   });
   BM.setObjective(g);
   g.board = { confidence: 60 };
@@ -68,13 +69,18 @@ BM.updateReputations = function (g) {
 
 BM.emptyRecord = function () { return { w: 0, l: 0, pf: 0, pa: 0, streak: '' }; };
 
-// Style de jeu de l'IA déduit des qualités de l'effectif.
+// Style de jeu de l'IA : système et schéma les mieux adaptés à l'effectif (familiarité comprise).
 BM.aiTacticStyle = function (g, team) {
-  var players = BM.roster(g, team);
-  var avg = function (k) { return players.reduce(function (s, p) { return s + p.attrs[k]; }, 0) / players.length; };
-  team.tactics.focus = avg('tir3') > avg('fin') + 1 ? 'exterieur' : avg('fin') > avg('tir3') + 2 ? 'interieur' : 'equilibre';
-  team.tactics.pace = avg('vit') > 12.5 ? 'rapide' : avg('vit') < 10.5 ? 'lent' : 'normal';
-  team.tactics.defense = avg('int') > 12.5 && avg('end') > 12 ? 'press' : avg('defI') > avg('defE') + 1.5 ? 'zone' : 'homme';
+  BM.migrateTactics(g, team);
+  team.tactics.roles = {};
+  BM.ensureRoles(g, team);
+  var t = BM.bestTactic(g, team);
+  team.tactics.system = t.system;
+  team.tactics.defense = t.defense;
+  team.tactics.pace = t.system === 'run' ? 'rapide' : t.system === 'post' || t.system === 'princeton' ? 'lent' : 'normal';
+  team.fam = team.fam || { off: {}, def: {} };
+  team.fam.off[t.system] = Math.max(team.fam.off[t.system] || 0, 75);
+  team.fam.def[t.defense] = Math.max(team.fam.def[t.defense] || 0, 75);
 };
 
 // ==================================================================== dates & messages
@@ -321,6 +327,7 @@ BM.train = function (g, team, plan, matchDay) {
       if (team.id === g.userTeam) BM.addMessage(g, 'Blessure : ' + BM.fullName(p), 'Blessé à l\'entraînement, indisponible environ ' + p.injury + ' jours.', 'medical');
     }
   });
+  BM.growFamiliarity(team, matchDay ? 0.8 : rest ? 0 : focus.v === 'tactique' ? 1.6 : 0.5);
   if (!rest && !matchDay && focus.v === 'tactique') team.cohesion = Math.min(100, team.cohesion + 1.5);
   else if (!matchDay) team.cohesion = Math.min(100, team.cohesion + 0.3);
 };
@@ -552,6 +559,8 @@ BM.addToTeam = function (g, p, team) {
   if (p.teamId !== null) BM.removeFromTeam(g, p);
   p.teamId = team.id;
   team.roster.push(p.id);
+  team.tactics.roles = team.tactics.roles || {};
+  team.tactics.roles[p.id] = BM.bestRole(p);
   if (team.id === g.userTeam) team.tactics.minutes[p.id] = team.tactics.minutes[p.id] || 0;
   else BM.autoTactics(g, team);
 };
@@ -690,6 +699,7 @@ BM.deserialize = function (json) {
   var g = JSON.parse(json);
   if (!g || !g.teams || !g.players) throw new Error('Sauvegarde invalide');
   g.rng = new BM.RNG(g.rng.s);
+  g.teams.forEach(function (t) { BM.migrateTactics(g, t); });
   // Migration : abréviations par surnom d'équipe (WAR, THU...).
   if (BM.NBA) g.teams.forEach(function (t) {
     var d = BM.NBA.teams.find(function (x) { return x.code === t.code; });
