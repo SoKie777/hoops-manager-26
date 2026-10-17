@@ -22,6 +22,9 @@ Ouvrir directement `index.html` fonctionne aussi. La partie est sauvegardée aut
 - **Recrutement** : staff noté (assistant, scouts, kiné), connaissance des joueurs (notes en fourchette tant qu'ils ne sont pas observés), missions et rapports de scouts, assistant qui analyse les besoins et propose des cibles réalistes, draft NBA (loterie, big board, salle de draft).
 - **Écosystème** : personnalités, statuts (franchise → espoir), hiérarchie et ambiance du vestiaire, discussions et promesses de temps de jeu, conférences de presse, All-Star Game, trophées (MVP, DPOY, ROY, 6e homme, MIP, coach de l'année, All-NBA), échanges avec règle salariale et date limite.
 - **Joueurs** : 19 attributs notés de 1 à 20 (technique, mental, physique), 5 postes, potentiel, moral, condition, blessures et contrats.
+- **Moteur fiable et explicable** (v1.7) : effets de score (l'équipe qui mène se relâche, celle qui est menée force), garbage time, vraies fins de match (fautes volontaires, horloge écoulée, dernier tir), usage réaliste des stars. Un banc d'essai rejoue des milliers de matchs à chaque compilation et vérifie des cibles NBA : environ 99 possessions, efficacité environ 115, écart moyen environ 12 pts, meilleur marqueur autour de 33 pts, avantage du terrain, et aucune combinaison tactique dominante. Après chaque match, le staff explique les clés de la rencontre (rebond, pertes, adresse, tactique mieux adaptée, fatigue au 4e quart-temps, séries, banc), avec un poids estimé en points.
+- **Portraits** : chaque joueur a un portrait illustré façon FM26, généré à partir de son identité (teint, coiffure, barbe, bandeau) et aux couleurs de son maillot.
+- **Paysage** : l'APK est verrouillé en paysage ; navigation en rail latéral, écrans en deux colonnes, match avec le terrain à gauche et le direct à droite.
 - **Match en direct** : moteur possession par possession au format NBA (4 × 12 min, exclusion à 6 fautes). Il gère la fatigue, les fautes (bonus, 5 fautes), les contres, les rebonds offensifs et la transition. Au bord du terrain, on dispose des temps morts, des changements manuels ou automatiques, des consignes et de la causerie de mi-temps. En fin de match, on obtient une feuille de match et des notes.
 - **Tactique** : rythme, orientation offensive, défense (individuelle, zone 2-3, press), cinq de départ et plan de minutes.
 - **Entraînement** : choix d'un thème et d'une intensité. La progression dépend de l'âge et de l'écart au potentiel. Le travail tactique augmente la cohésion de l'équipe.
@@ -39,10 +42,14 @@ Ouvrir directement `index.html` fonctionne aussi. La partie est sauvegardée aut
 | `js/engine.js` | Moteur de match |
 | `js/league.js` | Calendrier, playoffs, entraînement, mercato, direction, intersaison, sauvegarde |
 | `js/ui.js`, `js/match-ui.js`, `js/main.js` | Interface |
+| `js/analysis.js` | Explications d'après-match (pourquoi on a gagné ou perdu) |
+| `js/portrait.js` | Portraits illustrés des joueurs |
 | `test/sim.test.js` | Simule plusieurs saisons et vérifie que les statistiques sont réalistes |
+| `test/engine.test.js` | Banc d'essai : des milliers de matchs, cibles NBA chiffrées et détection des tactiques dominantes |
 
 ```bash
 node test/sim.test.js
+node test/engine.test.js 3000        # banc d'essai complet (ajouter « fast » pour sauter le scan des tactiques)
 ```
 
 ## Vers un APK

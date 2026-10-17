@@ -3,7 +3,9 @@ var BM = globalThis.BM = globalThis.BM || {};
 // Moteur de match possession par possession (format FIBA 4 x 10 min, prolongations de 5 min).
 (function () {
   var QUARTER = BM.QUARTER_MIN * 60, OVERTIME = 300, REGULATION = 4 * QUARTER;
-  var PACE_SEC = { lent: 16, normal: 14, rapide: 12 };
+  var PACE_SEC = { lent: 15.2, normal: 13.4, rapide: 11.6 };
+  var USAGE_EXP = 0.7;
+  var SCORE_FX = 0.0027, SCORE_FX_CAP = 22;
   var POS_ORDER = { MEN: 0, ARR: 1, AIL: 2, AF: 3, PIV: 4 };
 
   function emptyBox() {
@@ -33,9 +35,13 @@ var BM = globalThis.BM = globalThis.BM || {};
     this.mom = [50, 50];          // jauge de momentum (0-100) par équipe
     this.heat = {};               // série en cours de chaque joueur (≥ 3 : en feu)
     this.firstOpt = [null, null]; // 1re option offensive choisie en direct par le coach
+    // Suivi pour l'analyse d'après-match : scores par quart-temps, énergie au 4e, séries de points.
+    this.qs = []; this.q4en = [0, 0]; this.q4n = 0;
+    this.run = { side: -1, pts: 0, q: 1 }; this.bestRun = [{ pts: 0 }, { pts: 0 }];
+    this.starters0 = [this.on[0].slice(), this.on[1].slice()];
     this.firstPoss = this.rng.chance(0.5) ? 0 : 1;
     this.poss = this.firstPoss;
-    this.oreb = false; this.fast = false;
+    this.oreb = false; this.fast = false; this.possCount = 0;
     this.log('info', -1, 'Entre-deux remporté par ' + this.side[this.poss].name + '.');
   }
 
@@ -75,7 +81,9 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (this.en[p.id] < 60) s -= 0.3;
     if (this.box[p.id].pf >= BM.FOUL_OUT - 1 && this.q <= 3) s -= 0.4;
     if (this.box[p.id].pf >= BM.FOUL_OUT - 2 && this.q <= 2) s -= 0.2;
-    if (this.q >= 4 && this.clock < 180) s += BM.ovrRaw(p) / 40; // fin de match serrée : les meilleurs
+    if (this.q >= 4 && this.clock < 180 && !this.garbage()) s += BM.ovrRaw(p) / 40; // fin de match serrée : les meilleurs
+    // Match plié : les titulaires sortent, le banc finit la rencontre.
+    if (this.garbage()) s -= ((this.plan[i][p.id] || 0) - 20) / 20;
     return s;
   };
 
@@ -148,12 +156,29 @@ var BM = globalThis.BM = globalThis.BM || {};
     var self = this;
     this.score[side] += pts;
     this.stat(p, 'pts', pts);
+    if (this.run.side === side) this.run.pts += pts; else this.run = { side: side, pts: pts, q: this.q, from: this.score.slice() };
+    if (this.run.pts > this.bestRun[side].pts) this.bestRun[side] = { pts: this.run.pts, q: this.run.q, from: this.run.from };
     this.on[side].forEach(function (id) { self.box[id].pm += pts; });
     this.on[1 - side].forEach(function (id) { self.box[id].pm -= pts; });
   };
 
   Match.prototype.clutch = function () {
     return this.q >= 4 && this.clock < 120 && Math.abs(this.score[0] - this.score[1]) <= 5;
+  };
+
+  // Écart au score vu par l'attaque (positif si elle mène).
+  Match.prototype.lead = function (o) { return this.score[o] - this.score[1 - o]; };
+
+  // Effet du score : l'équipe qui mène se relâche, celle qui est menée force et prend des risques.
+  Match.prototype.scoreEffect = function (o) {
+    var l = BM.clamp(this.lead(o), -SCORE_FX_CAP, SCORE_FX_CAP);
+    return -l * SCORE_FX;
+  };
+
+  // Fin de match pliée (garbage time) : 4e quart-temps, écart de 18 pts ou plus à moins de 5 minutes.
+  Match.prototype.garbage = function () {
+    var gap = Math.abs(this.score[0] - this.score[1]);
+    return this.q === 4 && ((this.clock < 300 && gap >= 18) || (this.clock < 480 && gap >= 26));
   };
 
   Match.prototype.avgGrav = function (side, k) {
@@ -190,7 +215,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     return last;
   };
 
-  Match.prototype.switchPoss = function () { this.poss = 1 - this.poss; };
+  Match.prototype.switchPoss = function () { this.poss = 1 - this.poss; this.possCount++; };
 
   Match.prototype.rebound = function (o) {
     var self = this, d = 1 - o, O = this.lineup(o), D = this.lineup(d), rng = this.rng;
@@ -291,26 +316,50 @@ var BM = globalThis.BM = globalThis.BM || {};
     var sysO = BM.SYSTEMS[this.tac[o].system], sch = this.tac[d].defense;
     if (sysO.pace) pace = Math.min(pace, sysO.pace);
     var dur = this.oreb ? rng.range(4, 11) : this.fast ? rng.range(3, 7) : BM.clamp(rng.gauss(pace, 3.5), 5, 24);
+    // Fin de match : l'équipe qui mène écoule l'horloge, celle qui est menée fait faute exprès.
+    var late = this.q >= 4 && this.clock <= 60, ld = this.lead(o);
+    if (late && ld > 0 && !this.oreb) dur = Math.max(dur, Math.min(22, this.clock - 1));
+    var hackFoul = late && ld >= 4 && ld <= 9 && this.clock <= 45 && this.clock > 2 && !this.oreb;
+    if (hackFoul) dur = rng.range(2, 5);
+    // Égalité ou menés de 1-2 avec moins de 24 s : on garde le ballon pour le dernier tir.
+    if (late && ld <= 0 && ld >= -2 && this.clock <= 24 && !this.oreb) dur = Math.max(1, this.clock - rng.range(0.5, 3));
     if (dur >= this.clock) dur = this.clock;
     var fast = this.fast, putback = this.oreb;
+    // Moins de 3 s au chrono : tir désespéré depuis le milieu du terrain.
+    var heave = this.clock <= 3 && !putback;
     this.fast = false; this.oreb = false;
     [0, 1].forEach(function (i) { self.mom[i] += (50 - self.mom[i]) * 0.04; });
     var fo = this.firstOpt[o] && this.on[o].indexOf(this.firstOpt[o]) >= 0 && !this.out[this.firstOpt[o]] ? this.firstOpt[o] : null;
     this.play = { o: o, q: this.q, dur: dur, fast: fast, putback: putback, on: [this.on[0].slice(), this.on[1].slice()], kind: 'none' };
     this.tick(dur);
+    if (this.q >= 4) {
+      this.q4n++;
+      [0, 1].forEach(function (i) { self.q4en[i] += self.avg(self.lineup(i), function (p) { return self.en[p.id]; }) || 0; });
+    }
     if (O.length === 0 || D.length === 0) { this.switchPoss(); return; }
     var a = function (p, k) { return self.a(p, k); };
+
+    if (hackFoul) {
+      var hd = rng.weighted(O, function (p) { return Math.pow(a(p, 'drb') + a(p, 'pas'), 2); });
+      var hf = rng.weighted(D, function (p) { return 22 - p.attrs.qi; });
+      this.foul(d, hf);
+      this.play.kind = 'foul'; this.play.fouler = hf.id; this.play.handler = hd.id;
+      this.log('foul', d, 'Faute volontaire de ' + this.name(hf) + ' pour arrêter le chrono.');
+      if (this.freeThrows(o, hd, 2)) this.switchPoss(); else this.rebound(o);
+      return;
+    }
 
     // Perte de balle.
     var handler = rng.weighted(O, function (p) { return Math.pow(a(p, 'drb') + a(p, 'pas'), 2); });
     if (fo && rng.chance(0.5)) handler = this.p(fo);
     var defSteal = this.avg(D, function (p) { return a(p, 'int') * 0.6 + a(p, 'defE') * 0.4; });
-    var tov = 0.13 + 0.006 * (defSteal - (a(handler, 'drb') * 0.5 + a(handler, 'pas') * 0.3 + a(handler, 'qi') * 0.2));
-    if (this.tac[d].defense === 'press') tov += 0.035;
+    var tov = 0.142 + 0.006 * (defSteal - (a(handler, 'drb') * 0.5 + a(handler, 'pas') * 0.3 + a(handler, 'qi') * 0.2));
+    if (this.tac[d].defense === 'press') tov += 0.028;
     if (this.tac[d].defense === 'blitz') tov += 0.025;
     tov += (sysO.tov || 0) - this.edge[o].off * 0.3 + this.edge[d].def * 0.3;
     tov += (this.avgGrav(d, 'def') - 11) * 0.002;
     if (this.tac[o].pace === 'rapide') tov += 0.01;
+    tov -= this.scoreEffect(o) * 0.5;
     if (putback) tov *= 0.4;
     this.play.handler = handler.id;
     if (rng.chance(BM.clamp(tov, 0.05, 0.26))) {
@@ -353,10 +402,13 @@ var BM = globalThis.BM = globalThis.BM || {};
       var rl = self.role[p.id], use = rl ? rl.usage : 1;
       if (sysO.star && p === starO) use *= sysO.star;
       if (sysO.bigs && (p.pos === 'AF' || p.pos === 'PIV')) use *= sysO.bigs;
-      return Math.pow(u, 2.2) * use * (0.7 + self.grav[p.id].on / 30) * (p.id === fo ? 2.2 : 1);
+      // Usage réaliste : la star prend environ un tiers des tirs quand elle est sur le terrain, pas la moitié.
+      return Math.pow(u, USAGE_EXP) * Math.pow(use, 0.5) * (0.9 + self.grav[p.id].on / 80) * (p.id === fo ? 2.2 : 1);
     });
     var mm = shooter.id === fo ? this.mismatch(o, fo) : null;
     var type = fast ? (rng.chance(0.8) ? 'rim' : 'three') : putback && rng.chance(0.6) ? 'rim' : this.shotType(shooter, o, d);
+    // Menés de 3 dans les dernières secondes : il faut un tir à 3 points.
+    if (this.q >= 4 && this.clock <= 24 && this.lead(o) === -3) type = 'three';
     // La 1re option attaque son mismatch : poste bas s'il est intérieur.
     if (mm && mm.val >= 2 && mm.kind === 'int' && !fast && rng.chance(0.6)) type = 'rim';
     var df = this.matchup(shooter, o, D);
@@ -367,12 +419,12 @@ var BM = globalThis.BM = globalThis.BM || {};
       var help = this.avg(D, function (p) { return a(p, 'defI') * 0.5 + a(p, 'ctr') * 0.5; });
       var offR = e('fin') * 0.65 + e('det') * 0.15 + e('for') * 0.2;
       var defR = (f('defI') * 0.5 + f('ctr') * 0.3 + f('for') * 0.2) * 0.6 + help * 0.4;
-      prob = 0.52 + 0.016 * (offR - defR);
+      prob = 0.51 + 0.016 * (offR - defR);
       if (fast) prob += 0.12;
       if (putback) prob += 0.04;
       if (this.tac[d].defense === 'zone') prob -= 0.03;
     } else if (type === 'mid') {
-      prob = 0.39 + 0.012 * (e('tirMi') * 0.85 + e('sf') * 0.15 - (f('defE') * 0.7 + f('vit') * 0.3));
+      prob = 0.38 + 0.012 * (e('tirMi') * 0.85 + e('sf') * 0.15 - (f('defE') * 0.7 + f('vit') * 0.3));
     } else {
       prob = 0.305 + 0.011 * (e('tir3') * 0.85 + e('sf') * 0.15 - (f('defE') * 0.6 + f('vit') * 0.25 + f('det') * 0.15));
       if (this.tac[d].defense === 'zone') prob += 0.015;
@@ -390,11 +442,12 @@ var BM = globalThis.BM = globalThis.BM || {};
     prob += (spacing - 11) * (type === 'three' ? 0.002 : 0.004);
     if (handler !== shooter) prob += (this.grav[handler.id].on - 12) * 0.003;
     prob -= (this.grav[df.id].def - 11) * 0.004;
-    if (o === 0) prob += 0.01;
+    if (o === 0) prob += 0.017; // avantage du terrain
     prob += ((this.side[o].cohesion || 50) - (this.side[d].cohesion || 50)) / 800; // cohésion relative : pas d'inflation globale
     if (this.clutch()) prob += (shooter.attrs.sf - 10) * 0.004;
     // Momentum d'équipe (relatif), main chaude, et récompense du coach qui choisit la bonne 1re option.
     prob += (this.mom[o] - this.mom[d]) / 2500;
+    prob += this.scoreEffect(o);
     var hot = this.isHot(shooter.id);
     if (hot) prob += 0.015;
     if (mm) {
@@ -404,6 +457,9 @@ var BM = globalThis.BM = globalThis.BM || {};
     }
     this.play.hot = hot;
     prob = BM.clamp(prob, 0.12, 0.88);
+    // Dernière possession décisive : défense resserrée, tir très disputé.
+    if (this.q >= 4 && this.clock <= 24 && this.lead(o) === 0) prob -= 0.12;
+    if (heave) { type = 'three'; pts = 3; prob = 0.08; this.play.type = type; }
 
     // Contre.
     if (type === 'rim') {
@@ -484,6 +540,7 @@ var BM = globalThis.BM = globalThis.BM || {};
   // ---------------------------------------------------------------- déroulement
   Match.prototype.endQuarter = function () {
     var t = this.side;
+    this.qs.push(this.score.slice());
     var label = this.q <= 4 ? 'Fin du ' + (this.q === 1 ? '1er' : this.q + 'e') + ' quart-temps' : 'Fin de la prolongation';
     this.log('quarter', -1, label + ' : ' + t[0].short + ' ' + this.score[0] + ' - ' + this.score[1] + ' ' + t[1].short);
     if (this.q >= 4 && this.score[0] !== this.score[1]) { this.finish(); return; }

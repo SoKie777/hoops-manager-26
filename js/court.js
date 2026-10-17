@@ -43,7 +43,13 @@ var BM = globalThis.BM = globalThis.BM || {};
     var par = this.canvas.parentNode, cs = getComputedStyle(par);
     var w = (par.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) || 360;
     var dpr = window.devicePixelRatio || 1;
-    var h = w * (H + MARGIN * 2) / (W + MARGIN * 2);
+    var ratio = (H + MARGIN * 2) / (W + MARGIN * 2);
+    // En paysage, le terrain doit aussi tenir en hauteur (variable CSS --fit-h posée par la mise en page).
+    if (cs.getPropertyValue('--fit-h').trim() === '1') {
+      var availH = par.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      if (availH > 80 && w * ratio > availH) w = availH / ratio;
+    }
+    var h = w * ratio;
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
     this.canvas.width = Math.round(w * dpr);

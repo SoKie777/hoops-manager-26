@@ -421,3 +421,65 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .sb .score { font-size: 36px; }
   .hero h1 { font-size: 40px; }
 }
+
+/* v1.7 : objectifs des systèmes, listes de consignes en grille */
+.tac-goal { display: block; font-family: system-ui, sans-serif; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--accent); font-size: 12.5px; margin-top: 2px; }
+.seg.wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.seg.wrap button { text-align: left; padding: 9px 10px; line-height: 1.25; }
+.why ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.why li { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: start; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border-left: 3px solid var(--muted); font-size: 13.5px; line-height: 1.35; }
+.why li.bad { border-left-color: var(--bad); }
+.why li.good { border-left-color: var(--good); }
+.why li em { font-style: normal; font-weight: 700; color: var(--muted); font-size: 12px; white-space: nowrap; }
+/* Portraits */
+.portrait { display: block; flex: none; border-radius: 12%; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
+.player-h { align-items: center; }
+.player-h .portrait { margin-right: 4px; }
+.pname { display: inline-flex; align-items: center; gap: 8px; }
+.pname .portrait { filter: none; border-radius: 6px; }
+.mvp-line { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; text-align: left; }
+
+/* ================= v1.7 : paysage (l'APK est verrouillé en paysage) ================= */
+@media (orientation: landscape) and (max-height: 620px) {
+  :root { --rail: 78px; }
+  /* Navigation en rail vertical à gauche. */
+  .app { max-width: none; padding-bottom: 12px; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  .app:has(.nav) { padding-left: calc(var(--rail) + env(safe-area-inset-left)); }
+  .nav { top: 0; bottom: 0; left: 0; right: auto; width: calc(var(--rail) + env(safe-area-inset-left)); padding: 8px 0 8px max(6px, env(safe-area-inset-left)); justify-content: flex-start; }
+  .nav-inner { flex-direction: column; width: 100%; height: 100%; max-width: none; border-radius: 20px; justify-content: space-evenly; }
+  .nav button { height: auto; flex: 1; font-size: 9.5px; gap: 2px; }
+  .nav button svg { width: 21px; height: 21px; }
+  .nav button.on::before { left: 8px; right: 8px; top: 4px; bottom: 4px; }
+  .toast { bottom: 18px; left: calc(50% + var(--rail) / 2); }
+  .topbar { padding: calc(6px + env(safe-area-inset-top)) 16px 6px; }
+  .topbar .badge { width: 34px; height: 34px; }
+
+  /* Pages en deux colonnes ; les blocs larges (tableaux, onglets, boutons) prennent toute la largeur. */
+  .page { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; padding: 12px 16px; gap: 12px; }
+  .page > .tabs, .page > .btn, .page > .btn-row, .page > .hero-card, .page > .card:has(.table-wrap), .page > .card.wide { grid-column: 1 / -1; }
+  .page > .card:has(.tac-grid), .page > .card:has(.team-pick) { grid-column: 1 / -1; }
+  .team-pick { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  .tac-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hero { padding-top: calc(18px + env(safe-area-inset-top)); }
+  .hero .ball { width: 46px; height: 46px; margin-bottom: 6px; }
+  .hero h1 { font-size: 36px; }
+
+  /* Modales : centrées, larges, contenu sur deux colonnes. */
+  .modal-bg { align-items: center; }
+  #app:has(.nav) ~ #modal-root .modal-bg { padding-left: var(--rail); }
+  .modal { max-width: min(980px, calc(100vw - var(--rail) - 24px)); max-height: 94vh; border-radius: 20px; border-bottom: 1px solid var(--border);
+    grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px 16px; }
+  .modal::before { display: none; }
+  .modal > .modal-h, .modal > .card:has(.table-wrap), .modal > .card:has(.sb), .modal > .card:has(.vs), .modal > .btn, .modal > .btn-row, .modal > .result-banner, .modal > p, .modal > .hint, .modal > .why, .modal > .attrs, .modal > .card.attrs { grid-column: 1 / -1; }
+  .modal > .grid2 { grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #m-panel .modal { grid-template-columns: minmax(0, 1fr); max-width: 560px; }
+
+  /* Match : tableau d'affichage en haut, terrain à gauche, direct et commandes à droite. */
+  .match .inner { max-width: none; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+    padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  .match .scoreboard { grid-column: 1 / -1; padding: calc(4px + env(safe-area-inset-top)) 14px 4px; }
+  .match .court-wrap { grid-column: 1; grid-row: 2 / 4; --fit-h: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 4px 10px 10px; }
+  .match .feed { grid-column: 2; grid-row: 2; min-height: 0; }
+  .match .controls { grid-column: 2; grid-row: 3; border-radius: 16px 0 0 0; }
+  .match .modal-bg { padding-left: 0; }
+}

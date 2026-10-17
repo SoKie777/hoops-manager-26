@@ -11,7 +11,7 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   BM.SYSTEMS = {
     pnr: {
-      l: 'Pick & Roll', d: 'Écran pour le porteur, le pivot plonge ou s\'écarte. Les shooteurs punissent les aides.',
+      l: 'Pick & Roll', goal: 'le duo meneur-pivot', d: 'Écran pour le porteur, le pivot plonge ou s\'écarte. Les shooteurs punissent les aides.',
       shot: { rim: 1.15, mid: 1.1, three: 1 }, ast: 0.05, roles: ['org', 'scoreur', 'roll', 'shooteur', '3d'],
       fit: function (ps) {
         return best(guards(ps), function (p) { return mix(p, { pas: 1, drb: 1, qi: 1 }); }) * 0.45 +
@@ -19,14 +19,14 @@ var BM = globalThis.BM = globalThis.BM || {};
       }
     },
     motion: {
-      l: 'Motion 5-Out', d: 'Cinq joueurs écartés, passes et coupes : le ballon trouve le tir ouvert.',
+      l: 'Motion 5-Out', goal: 'tirs à 3 pts ouverts', d: 'Cinq joueurs écartés, passes et coupes : le ballon trouve le tir ouvert.',
       shot: { rim: 0.95, mid: 0.8, three: 1.35 }, ast: 0.1, roles: ['shooteur', '3d', 'stretch', 'pointfwd', 'pivotcreateur'],
       fit: function (ps) {
         return avg(ps, function (p) { return p.attrs.qi; }) * 0.3 + avg(ps, function (p) { return p.attrs.pas; }) * 0.25 + avg(ps, function (p) { return p.attrs.tir3; }) * 0.45;
       }
     },
     iso: {
-      l: 'Isolation / héliocentrique', d: 'Tout passe par la star : un contre un, tirs créés en dribble.',
+      l: 'Isolation', goal: 'la star règle ça seule', d: 'Tout passe par la star : un contre un, tirs créés en dribble.',
       shot: { rim: 1.05, mid: 1.3, three: 0.95 }, ast: -0.15, star: 1.8, roles: ['scoreur', '3d', 'shooteur', 'roll'],
       fit: function (ps) {
         var s = ps.map(function (p) { return mix(p, { tirMi: 1, drb: 1, fin: 1, sf: 1 }); }).sort(function (a, b) { return b - a; });
@@ -34,7 +34,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       }
     },
     post: {
-      l: 'Jeu au poste bas', d: 'On nourrit l\'intérieur dos au panier, les extérieurs coupent ou attendent la ressortie.',
+      l: 'Poste bas', goal: 'tout pour l\'intérieur', d: 'On nourrit l\'intérieur dos au panier, les extérieurs coupent ou attendent la ressortie.',
       shot: { rim: 1.4, mid: 1.05, three: 0.75 }, ast: 0, bigs: 1.4, roles: ['poste', 'protecteur', 'shooteur', '3d', 'org'],
       fit: function (ps) {
         return best(bigs(ps), function (p) { return mix(p, { fin: 1, for: 1, qi: 0.5 }); }) * 0.6 + avg(ps, function (p) { return p.attrs.tir3; }) * 0.2 +
@@ -42,12 +42,12 @@ var BM = globalThis.BM = globalThis.BM || {};
       }
     },
     run: {
-      l: 'Run & Gun (7 secondes)', d: 'Tir dans les sept premières secondes : transition, tirs rapides, beaucoup de possessions.',
+      l: 'Run & Gun', goal: 'courir, tirer vite', d: 'Tir dans les sept premières secondes : transition, tirs rapides, beaucoup de possessions.',
       shot: { rim: 1.1, mid: 0.85, three: 1.2 }, ast: 0, transition: 0.15, pace: 12, roles: ['scoreur', 'slasher', 'shooteur', 'roll', 'pointfwd'],
       fit: function (ps) { return avg(ps, function (p) { return p.attrs.vit; }) * 0.4 + avg(ps, function (p) { return p.attrs.end; }) * 0.3 + avg(ps, function (p) { return p.attrs.fin; }) * 0.3; }
     },
     princeton: {
-      l: 'Princeton (coupes)', d: 'Lecture, passes des intérieurs en tête de raquette, coupes arrière : peu de pertes.',
+      l: 'Princeton', goal: 'coupes au cercle, peu de pertes', d: 'Lecture, passes des intérieurs en tête de raquette, coupes arrière : peu de pertes.',
       shot: { rim: 1.25, mid: 0.9, three: 1.05 }, ast: 0.1, tov: -0.02, roles: ['pivotcreateur', 'pointfwd', 'slasher', 'shooteur', 'org'],
       fit: function (ps) {
         return avg(ps, function (p) { return p.attrs.qi; }) * 0.35 + avg(ps, function (p) { return p.attrs.pas; }) * 0.3 + best(bigs(ps), function (p) { return p.attrs.pas; }) * 0.35;
@@ -57,23 +57,23 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   BM.SCHEMES = {
     drop: {
-      l: 'Drop coverage', d: 'Le pivot recule pour protéger le cercle : on concède les pull-ups à mi-distance.',
+      l: 'Drop', goal: 'fermer le cercle', d: 'Le pivot recule pour protéger le cercle : on concède les pull-ups à mi-distance.',
       fit: function (ps) { return best(bigs(ps), function (p) { return mix(p, { ctr: 1, defI: 1 }); }) * 0.7 + avg(guards(ps), function (p) { return p.attrs.defE; }) * 0.3; }
     },
     switch: {
-      l: 'Switch everything', d: 'On change sur tous les écrans : coupe les tirs extérieurs, expose les mismatchs au poste.',
+      l: 'Switch', goal: 'aucun tir ouvert', d: 'On change sur tous les écrans : coupe les tirs extérieurs, expose les mismatchs au poste.',
       fit: function (ps) { return avg(ps, function (p) { return Math.min(p.attrs.defE, p.attrs.defI); }) * 0.65 + avg(ps, function (p) { return p.attrs.vit; }) * 0.35; }
     },
     blitz: {
-      l: 'Blitz / hedge agressif', d: 'Prise à deux sur le porteur : provoque des pertes, ouvre des tirs après rotation.',
+      l: 'Blitz', goal: 'voler des ballons', d: 'Prise à deux sur le porteur : provoque des pertes, ouvre des tirs après rotation.',
       fit: function (ps) { return avg(ps, function (p) { return p.attrs.int; }) * 0.4 + avg(ps, function (p) { return p.attrs.vit; }) * 0.3 + avg(ps, function (p) { return p.attrs.end; }) * 0.3; }
     },
     zone: {
-      l: 'Zone 2-3', d: 'Protège la raquette et le rebond, concède des tirs à 3 points.',
+      l: 'Zone 2-3', goal: 'raquette fermée, 3 pts concédés', d: 'Protège la raquette et le rebond, concède des tirs à 3 points.',
       fit: function (ps) { return avg(bigs(ps), function (p) { return mix(p, { defI: 1, reb: 1, ctr: 0.5 }); }) * 0.5 + avg(ps, function (p) { return p.attrs.qi; }) * 0.5; }
     },
     press: {
-      l: 'Press tout terrain', d: 'Pression dès la remise en jeu : pertes provoquées, fatigue des deux côtés.',
+      l: 'Press', goal: 'pertes et fatigue', d: 'Pression dès la remise en jeu : pertes provoquées, fatigue des deux côtés.',
       fit: function (ps) { return avg(ps, function (p) { return p.attrs.int; }) * 0.4 + avg(ps, function (p) { return p.attrs.vit; }) * 0.3 + avg(ps, function (p) { return p.attrs.end; }) * 0.3; }
     }
   };
@@ -225,8 +225,10 @@ var BM = globalThis.BM = globalThis.BM || {};
     });
   };
 
-  BM.TACTIC_OPTIONS.system = Object.keys(BM.SYSTEMS).map(function (k) { return { v: k, l: BM.SYSTEMS[k].l, d: BM.SYSTEMS[k].d }; });
-  BM.TACTIC_OPTIONS.defense = Object.keys(BM.SCHEMES).map(function (k) { return { v: k, l: BM.SCHEMES[k].l, d: BM.SCHEMES[k].d }; });
+  // Libellé complet : nom du système et objectif en clair, par exemple « Princeton (coupes au cercle, peu de pertes) ».
+  BM.tacticLabel = function (x) { return x.l + (x.goal ? ' (' + x.goal + ')' : ''); };
+  BM.TACTIC_OPTIONS.system = Object.keys(BM.SYSTEMS).map(function (k) { var x = BM.SYSTEMS[k]; return { v: k, l: BM.tacticLabel(x), s: x.l, d: x.d }; });
+  BM.TACTIC_OPTIONS.defense = Object.keys(BM.SCHEMES).map(function (k) { var x = BM.SCHEMES[k]; return { v: k, l: BM.tacticLabel(x), s: x.l, d: x.d }; });
 
   // Anciennes sauvegardes : focus/défense "homme" -> systèmes et schémas réels.
   BM.migrateTactics = function (g, team) {

@@ -291,7 +291,7 @@ UI.squad_list = function () {
       var gr = BM.gravity(p);
       return '<tr class="click" data-act="player" data-id="' + p.id + '">' +
         '<td><span class="pos">' + p.pos + '</span></td>' +
-        '<td>' + UI.esc(BM.shortName(p)) + UI.statusTags(p) + '</td>' +
+        '<td><span class="pname">' + BM.portrait(p, me, 26) + '<span>' + UI.esc(BM.shortName(p)) + UI.statusTags(p) + '</span></span></td>' +
         '<td class="num">' + p.age + '</td>' +
         '<td class="num">' + UI.ovrBadge(BM.ovr(p)) + '</td>' +
         '<td class="num muted">' + BM.potDisplay(p) + '</td>' +
@@ -340,8 +340,8 @@ UI.showPlayer = function (id) {
   var progress = p.lastProgress && g.day - p.lastProgress.day <= 14
     ? '<p class="small" style="margin:0;color:var(--good)">Progression récente : ' + UI.esc(BM.ATTRS.find(function (a) { return a.k === p.lastProgress.k; }).l) + ' +1</p>' : '';
   UI.modal(
-    '<div class="modal-h">' + (team ? UI.teamBadge(team) : '<span class="badge" style="background:#868e96">AL</span>') +
-    '<div><h2>' + UI.esc(BM.fullName(p)) + '</h2><span class="small muted">' + BM.POS_LABEL[p.pos] + ' · ' + p.age + ' ans · ' + p.height + ' cm · ' + (team ? UI.esc(team.name) : 'Agent libre') + '</span></div>' +
+    '<div class="modal-h player-h">' + BM.portrait(p, team, 76) +
+    '<div><h2>' + (team ? UI.teamBadge(team, true) + ' ' : '') + UI.esc(BM.fullName(p)) + '</h2><span class="small muted">' + BM.POS_LABEL[p.pos] + ' · ' + p.age + ' ans · ' + p.height + ' cm · ' + (team ? UI.esc(team.name) : 'Agent libre') + '</span></div>' +
     '<button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
     '<div class="grid2">' +
     (mine ? '<div class="kpi"><b>' + UI.ovrBadge(BM.ovr(p)) + ' <span class="muted" style="font-size:14px">pot. ' + BM.potDisplay(p) + '</span></b><span>Note actuelle / potentiel estimé</span></div>'
@@ -467,7 +467,7 @@ UI.tactics_plan = function () {
     return Object.keys(map).map(function (id) {
       var fit = fitFn(g, me, id), fam = Math.round(BM.familiarity(me, kind, id)), on = id === current;
       return '<button class="tac-card' + (on ? ' on' : '') + '" data-act="setTactic" data-f="' + field + '" data-v="' + id + '">' +
-        '<span class="tac-h"><b>' + UI.esc(map[id].l) + '</b>' + (id === bt[field] ? '<span class="tag good">Conseillé</span>' : '') + '</span>' +
+        '<span class="tac-h"><b>' + UI.esc(map[id].l) + (map[id].goal ? ' <span class="tac-goal">(' + UI.esc(map[id].goal) + ')</span>' : '') + '</b>' + (id === bt[field] ? '<span class="tag good">Conseillé</span>' : '') + '</span>' +
         '<span class="tac-d">' + UI.esc(map[id].d) + '</span>' +
         '<span class="tac-m"><span>Adéquation</span>' + UI.bar(fit) + '<em>' + fit + '</em></span>' +
         '<span class="tac-m"><span>Familiarité</span>' + UI.bar(fam) + '<em>' + fam + '</em></span></button>';
@@ -686,7 +686,18 @@ UI.actions.boxScore = function (el) {
   var g = UI.g, f = g.fixtures.find(function (x) { return x.id === +el.dataset.id; });
   if (!f || !f.box) return;
   UI.modal('<div class="modal-h"><h2>' + UI.esc(g.teams[f.home].short + ' ' + f.hs + ' - ' + f.as + ' ' + g.teams[f.away].short) + '</h2><button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
-    UI.boxTable(g, f.box, 0, g.teams[f.home]) + UI.boxTable(g, f.box, 1, g.teams[f.away]));
+    UI.whyCard(f.why) + UI.boxTable(g, f.box, 0, g.teams[f.home]) + UI.boxTable(g, f.box, 1, g.teams[f.away]));
+};
+
+// Explications d'après-match : les facteurs qui ont décidé de la rencontre, avec leur poids estimé.
+UI.whyCard = function (why) {
+  if (!why || !why.keys) return '';
+  var li = function (x, cls) { return '<li class="' + cls + '"><span>' + UI.esc(x.t) + '</span><em>≈ ' + x.pts.toFixed(0) + ' pts</em></li>'; };
+  return '<div class="card why"><h3>' + (why.won ? 'Les clés de la victoire' : 'Pourquoi cette défaite') + '</h3>' +
+    (why.close ? '<p class="hint" style="margin:0 0 6px">Match joué à une possession : le moindre détail a compté.</p>' : '') +
+    '<ul>' + why.keys.map(function (x) { return li(x, why.won ? 'good' : 'bad'); }).join('') +
+    why.plus.map(function (x) { return li(x, why.won ? 'bad' : 'good'); }).join('') + '</ul>' +
+    '<p class="hint" style="margin:6px 0 0">Estimations du staff à partir de la feuille de match. ' + (why.won ? '' : 'Le dernier point est ce qui a quand même marché.') + '</p></div>';
 };
 
 UI.boxTable = function (g, box, side, team) {

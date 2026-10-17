@@ -2,7 +2,7 @@
 // Lancement : node test/sim.test.js
 var path = require('path');
 var assert = require('assert');
-['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'league'].forEach(function (f) {
+['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'analysis', 'league'].forEach(function (f) {
   require(path.join(__dirname, '..', 'js', f + '.js'));
 });
 var BM = globalThis.BM;
@@ -97,7 +97,10 @@ assert(dyn.leaders.length === 3 && dyn.atmosphere > 0, 'dynamique du vestiaire')
 console.log('Écosystème OK : échange', ev.mood, '| ambiance', dyn.label);
 
 // Sauvegarde / chargement.
-var g2 = BM.deserialize(BM.serialize(g));
+var json = BM.serialize(g);
+console.log('Taille de la sauvegarde :', (json.length / 1024).toFixed(0) + ' Ko');
+assert(json.length < 3.5 * 1024 * 1024, 'sauvegarde trop lourde pour le stockage local');
+var g2 = BM.deserialize(json);
 assert.strictEqual(g2.rng.next(), g.rng.next(), 'état RNG restauré');
 Object.keys(g.teams).forEach(function (i) {
   g.teams[i].roster.forEach(function (id) { assert.strictEqual(g.players[id].teamId, +i, 'cohérence effectif/joueur'); });

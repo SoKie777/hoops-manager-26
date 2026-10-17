@@ -30,6 +30,9 @@ jobs:
       - name: Tester le moteur (3 saisons simulées)
         run: npm test
 
+      - name: Banc d'essai statistique (milliers de matchs, cibles NBA, exploits tactiques)
+        run: node test/engine.test.js 1500
+
       - name: Préparer les fichiers web
         run: npm run build
 
@@ -37,6 +40,12 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+
+      # Écran verrouillé en paysage (les deux sens, selon le capteur).
+      - name: Orientation paysage
+        run: |
+          sed -i -E 's/<activity( |$)/<activity android:screenOrientation="sensorLandscape"\1/' android/app/src/main/AndroidManifest.xml
+          grep -o 'android:screenOrientation="[a-zA-Z]*"' android/app/src/main/AndroidManifest.xml
 
       - name: Générer l'icône et l'écran de démarrage
         run: >

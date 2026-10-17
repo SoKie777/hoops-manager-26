@@ -241,8 +241,8 @@ UI.renderPanel = function () {
       '<div class="court">' + m.on[u].map(function (id) {
         var p = m.p(id), mm = m.mismatch(u, id), vs = mm.vs ? m.p(mm.vs) : null, hot = m.isHot(id), b = m.box[id];
         var cls = mm.val >= 2 ? 'good' : mm.val <= -2 ? 'bad' : '';
-        return '<div class="pl opt' + (cur === id ? ' sel' : '') + '" data-act="mOption" data-id="' + id + '" style="cursor:pointer;grid-template-columns:36px 1fr auto">' +
-          '<span class="pos">' + p.pos + '</span>' +
+        return '<div class="pl opt' + (cur === id ? ' sel' : '') + '" data-act="mOption" data-id="' + id + '" style="cursor:pointer;grid-template-columns:40px 1fr auto">' +
+          BM.portrait(p, m.side[u], 36) +
           '<span><b>' + UI.esc(BM.shortName(p)) + '</b>' + (hot ? ' <span class="tag fire">🔥 En feu</span>' : '') +
           '<br><span class="muted small">' + b.pts + ' pts · vs ' + (vs ? UI.esc(BM.shortName(vs)) : '-') + ' · ' + (mm.kind === 'int' ? 'poste bas' : 'extérieur') + '</span></span>' +
           '<span class="tag ' + cls + '" style="font-size:13px">' + (mm.val > 0 ? '+' : '') + mm.val + '</span></div>';
@@ -251,7 +251,7 @@ UI.renderPanel = function () {
   } else if (L.panel === 'tactic') {
     var t = m.tac[u], O = BM.TACTIC_OPTIONS;
     var seg = function (f) {
-      return '<div class="field"><label>' + { pace: 'Rythme', system: 'Système', defense: 'Défense' }[f] + '</label><div class="seg">' + O[f].map(function (o) {
+      return '<div class="field"><label>' + { pace: 'Rythme', system: 'Système', defense: 'Défense' }[f] + '</label><div class="seg' + (f === 'pace' ? '' : ' wrap') + '">' + O[f].map(function (o) {
         return '<button data-act="mTactic" data-f="' + f + '" data-v="' + o.v + '" class="' + (t[f] === o.v ? 'on' : '') + '">' + o.l + '</button>';
       }).join('') + '</div></div>';
     };
@@ -342,8 +342,8 @@ UI.finishMatch = function () {
   UI.modal('<div class="result-banner"><h2 class="' + (won ? 'win' : 'loss') + '">' + (won ? 'Victoire' : 'Défaite') + '</h2></div>' +
     '<div class="card"><div class="sb"><div class="t">' + UI.teamBadge(m.side[0], true) + UI.esc(m.side[0].short) + '</div>' +
     '<div class="score">' + m.score[0] + ' – ' + m.score[1] + '</div><div class="t away">' + UI.esc(m.side[1].short) + UI.teamBadge(m.side[1], true) + '</div></div>' +
-    (mvp ? '<p class="small" style="text-align:center;margin:8px 0 0">Homme du match : <b>' + UI.esc(BM.fullName(mvp)) + '</b> (' + m.ratings[mvp.id].toFixed(1) + ')</p>' : '') + '</div>' +
-    UI.boxTable(g, fx.box, 0, m.side[0]) + UI.boxTable(g, fx.box, 1, m.side[1]) +
+    (mvp ? '<div class="mvp-line">' + BM.portrait(mvp, g.teams[mvp.teamId], 44) + '<p class="small" style="margin:0">Homme du match<br><b>' + UI.esc(BM.fullName(mvp)) + '</b> (' + m.ratings[mvp.id].toFixed(1) + ')</p></div>' : '') + '</div>' +
+    UI.whyCard(fx.why) + UI.boxTable(g, fx.box, 0, m.side[0]) + UI.boxTable(g, fx.box, 1, m.side[1]) +
     '<button class="btn primary block" data-act="afterMatch">Continuer</button>');
 };
 

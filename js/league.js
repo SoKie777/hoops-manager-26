@@ -162,14 +162,16 @@ BM.applyResult = function (g, fx, m) {
   fx.mvp = m.mvp;
   var home = g.teams[fx.home], away = g.teams[fx.away];
   var winner = fx.hs > fx.as ? home : away, loser = winner === home ? away : home;
-  fx.box = {};
+  // Feuille de match conservée uniquement pour les rencontres de l'utilisateur : la sauvegarde reste légère.
+  var keepBox = fx.home === g.userTeam || fx.away === g.userTeam;
+  var box = {};
 
   // Statistiques individuelles et état physique.
   [0, 1].forEach(function (side) {
     var won = side === (fx.hs > fx.as ? 0 : 1);
     m.roster[side].forEach(function (p) {
       var b = m.box[p.id], r = m.ratings[p.id];
-      fx.box[p.id] = { side: side, min: Math.round(b.sec / 60), pts: b.pts, reb: b.oreb + b.dreb, ast: b.ast, stl: b.stl, blk: b.blk, tov: b.tov, pf: b.pf,
+      box[p.id] = { side: side, min: Math.round(b.sec / 60), pts: b.pts, reb: b.oreb + b.dreb, ast: b.ast, stl: b.stl, blk: b.blk, tov: b.tov, pf: b.pf,
         fgm: b.fgm, fga: b.fga, tpm: b.tpm, tpa: b.tpa, ftm: b.ftm, fta: b.fta, pm: b.pm, rtg: r || null };
       if (b.sec > 0 && fx.type === 'league') {
         var s = p.stats;
@@ -190,6 +192,8 @@ BM.applyResult = function (g, fx, m) {
       if (min < 8 && BM.rankInTeam(g, p) < 7) p.morale = BM.clamp(p.morale - 3, 0, 100);
     });
   });
+
+  if (keepBox) { fx.box = box; fx.why = BM.explainMatch(m, fx.home === g.userTeam ? 0 : 1); }
 
   if (fx.type === 'league') {
     home.record.pf += fx.hs; home.record.pa += fx.as;
@@ -234,7 +238,8 @@ BM.afterUserMatch = function (g, fx, m) {
   var mvp = fx.mvp ? g.players[fx.mvp] : null;
   BM.addMessage(g, (won ? 'Victoire' : 'Défaite') + ' contre ' + opp.name + ' (' + us + '-' + them + ')',
     (fx.type === 'playoff' ? 'Playoffs. ' : 'Championnat, journée ' + fx.round + '. ') +
-    (mvp ? 'Homme du match : ' + BM.fullName(mvp) + ' (' + g.teams[mvp.teamId].short + ').' : ''), 'match');
+    (mvp ? 'Homme du match : ' + BM.fullName(mvp) + ' (' + g.teams[mvp.teamId].short + ').' : '') +
+    (fx.why && fx.why.keys.length ? '\n\n' + (won ? 'Les clés de la victoire' : 'Pourquoi cette défaite') + ' :\n' + fx.why.keys.map(function (k) { return '• ' + k.t; }).join('\n') : ''), 'match');
   // Déclaration fanfaronne d'avant-match : récompensée ou punie selon le résultat.
   if (g.press && g.press.bold) {
     BM.roster(g, me).forEach(function (p) { p.morale = BM.clamp(p.morale + (won ? 2 : -2), 0, 100); });
@@ -726,6 +731,8 @@ BM.deserialize = function (json) {
   Object.keys(g.players).forEach(function (id) { var p = g.players[id]; if (p.seasonStartOvr === undefined) p.seasonStartOvr = BM.ovrRaw(p); });
   BM.initScouting(g);
   BM.initEcosystem(g);
+  // Migration : feuilles de match des rencontres IA supprimées (v1.7).
+  g.fixtures.forEach(function (f) { if (f.box && f.home !== g.userTeam && f.away !== g.userTeam) delete f.box; });
   // Migration : abréviations par surnom d'équipe (WAR, THU...).
   if (BM.NBA) g.teams.forEach(function (t) {
     var d = BM.NBA.teams.find(function (x) { return x.code === t.code; });
