@@ -479,7 +479,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
     padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
   .match .scoreboard { grid-column: 1 / -1; padding: calc(4px + env(safe-area-inset-top)) 14px 4px; }
   .match .court-wrap { grid-column: 1; grid-row: 2 / 4; --fit-h: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 4px 10px 10px; }
-  .match .feed { grid-column: 2; grid-row: 2; min-height: 0; }
+  .match .live-right, .match > .inner > .feed { grid-column: 2; grid-row: 2; min-height: 0; }
   .match .controls { grid-column: 2; grid-row: 3; border-radius: 16px 0 0 0; }
   .match .modal-bg { padding-left: 0; }
 }
@@ -639,4 +639,114 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .actcat .lbl { font-size: 9.5px; letter-spacing: 0.08em; }
   .opts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #cine .ln { font-size: 30px; }
+}
+
+/* ================= v2.0 : Studio AAA Broadcast, Télémétrie & Bureau PC ================= */
+/* Duel des stars sur la carte d'accueil */
+.star-duel {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
+  margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24); border: 1px solid var(--border);
+}
+.sd-side { display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; transition: transform 0.15s; }
+.sd-side:hover { transform: translateY(-1px); }
+.sd-side.right { justify-content: flex-end; text-align: right; }
+.sd-vs {
+  font-family: var(--display); font-weight: 800; font-size: 11px; letter-spacing: 0.14em;
+  padding: 3px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Bandeau À la une NBA */
+.ticker-card { grid-column: 1 / -1; }
+.ticker-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.ticker-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border); cursor: pointer; transition: border-color 0.2s, transform 0.15s;
+}
+.ticker-item:hover { border-color: var(--accent); transform: translateY(-1px); }
+
+/* Radar 6 axes */
+.radar-wrap { display: flex; justify-content: center; align-items: center; padding: 4px 0; }
+.radar { max-width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.35)); }
+
+/* Tableau noir demi-terrain (Tactique) */
+.lineup-layout { display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 14px; align-items: center; }
+@media (max-width: 600px) { .lineup-layout { grid-template-columns: 1fr; } }
+.hc-board { width: 100%; height: auto; display: block; border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }
+.hc-node:hover circle:nth-of-type(2) { stroke: #ffd43b; stroke-width: 2.8px; }
+
+/* Arbre des Playoffs */
+.po-bracket { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: center; }
+@media (max-width: 580px) { .po-bracket { grid-template-columns: 1fr; } }
+.po-col { display: grid; gap: 8px; }
+.po-hdr { font-family: var(--display); font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-align: center; margin-bottom: 2px; }
+.po-series { background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; padding: 6px 8px; display: grid; gap: 4px; }
+.po-series.me { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-soft); }
+.po-team { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12.5px; padding: 2px 0; }
+.po-team.won { font-weight: 800; color: var(--text); }
+.po-w { font-family: var(--display); font-size: 16px; min-width: 18px; text-align: right; }
+
+/* Scorebug Broadcast & Direct */
+.t-meta { display: flex; flex-direction: column; gap: 3px; }
+.to-pips { display: inline-flex; gap: 3px; }
+.to-pip { width: 7px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.18); }
+.to-pip.on { background: #ffd43b; box-shadow: 0 0 6px rgba(255, 212, 59, 0.6); }
+.bonus-pill {
+  display: inline-block; font-family: system-ui, sans-serif; font-size: 9px; font-weight: 800;
+  padding: 1px 5px; border-radius: 4px; background: #ffd43b; color: #1c1100; vertical-align: middle; margin: 0 4px;
+}
+.q-strip { display: flex; justify-content: center; gap: 8px; font-size: 11px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.q-strip b { color: var(--text); }
+.q-tbl th, .q-tbl td { padding: 5px 6px; font-size: 12px; }
+
+.live-right { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.live-tabs { display: flex; gap: 6px; padding: 6px 14px 2px; }
+.live-tabs button {
+  flex: 1; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.live-tabs button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.live-aux { mask-image: none; -webkit-mask-image: none; }
+.live-p-row {
+  display: grid; grid-template-columns: 34px 1fr auto 54px; align-items: center; gap: 8px;
+  padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12.5px;
+}
+
+/* Carte des tirs & Flux du score (Shot Chart & Game Flow) */
+.analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; align-items: start; margin-top: 8px; }
+.shotchart-box, .gameflow-box { display: grid; gap: 6px; }
+.shotchart-svg, .gameflow-svg { width: 100%; height: auto; display: block; border-radius: 10px; }
+.sc-legend { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; }
+.sc-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.sc-zones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.sc-zone { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 6px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; }
+.gf-meta { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+
+/* Mise en page Studio Bureau Widescreen (PC >= 900px) */
+@media (min-width: 900px) {
+  :root { --rail: 88px; }
+  .app { max-width: 1280px; padding-bottom: 24px; }
+  .app:has(.nav) { padding-left: var(--rail); }
+  .nav { top: 0; bottom: 0; left: 0; right: auto; width: var(--rail); padding: 12px 0 12px 10px; justify-content: flex-start; }
+  .nav-inner { flex-direction: column; width: 100%; height: 100%; max-width: none; border-radius: 22px; justify-content: space-evenly; }
+  .nav button { height: auto; flex: 1; font-size: 10.5px; gap: 4px; }
+  .nav button.on::before { left: 8px; right: 8px; top: 6px; bottom: 6px; }
+  .toast { bottom: 24px; left: calc(50% + var(--rail) / 2); }
+  .page { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; padding: 18px 24px; gap: 16px; }
+  .page > .tabs, .page > .btn, .page > .btn-row, .page > .hero-card, .page > .ticker-card, .page > .card:has(.table-wrap), .page > .card.wide, .page > .card:has(.tac-grid), .page > .card:has(.team-pick), .page > .card:has(.po-bracket), .page > .card.chead, .page > .card.today { grid-column: 1 / -1; }
+  .page > .grid2 { grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .tac-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #app:has(.nav) ~ #modal-root .modal-bg { padding-left: var(--rail); }
+  .modal { max-width: min(1040px, calc(100vw - var(--rail) - 48px)); grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 20px 24px; }
+  .modal::before { display: none; }
+  .modal > .modal-h, .modal > .card:has(.table-wrap), .modal > .card:has(.sb), .modal > .card:has(.vs), .modal > .card:has(.analytics-grid), .modal > .btn, .modal > .btn-row, .modal > .result-banner, .modal > p, .modal > .hint, .modal > .why, .modal > .attrs, .modal > .card.attrs, .modal > .card.wide { grid-column: 1 / -1; }
+  .modal > .grid2 { grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #m-panel .modal { grid-template-columns: minmax(0, 1fr); max-width: 600px; }
+
+  /* Vue Broadcast du match en direct sur PC */
+  .match .inner { max-width: 1380px; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.95fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 0 14px; padding: 0 18px 14px; }
+  .match .scoreboard { grid-column: 1 / -1; padding: 12px 10px 8px; }
+  .match .court-wrap { grid-column: 1; grid-row: 2 / 4; --fit-h: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 6px; }
+  .match .live-right { grid-column: 2; grid-row: 2; min-height: 0; background: var(--surface); border: 1px solid var(--border); border-bottom: 0; border-radius: 16px 16px 0 0; }
+  .match .controls { grid-column: 2; grid-row: 3; border: 1px solid var(--border); border-radius: 0 0 16px 16px; }
 }

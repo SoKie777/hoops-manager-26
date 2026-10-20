@@ -1,6 +1,6 @@
 var BM = globalThis.BM = globalThis.BM || {};
 
-// Moteur de match possession par possession (format FIBA 4 x 10 min, prolongations de 5 min).
+// Moteur de match possession par possession (format NBA 4 x 12 min, prolongations de 5 min).
 (function () {
   var QUARTER = BM.QUARTER_MIN * 60, OVERTIME = 300, REGULATION = 4 * QUARTER;
   var PACE_SEC = { lent: 15.2, normal: 13.4, rapide: 11.6 };
@@ -35,9 +35,12 @@ var BM = globalThis.BM = globalThis.BM || {};
     this.mom = [50, 50];          // jauge de momentum (0-100) par équipe
     this.heat = {};               // série en cours de chaque joueur (≥ 3 : en feu)
     this.firstOpt = [null, null]; // 1re option offensive choisie en direct par le coach
-    // Suivi pour l'analyse d'après-match : scores par quart-temps, énergie au 4e, séries de points.
+    // Suivi pour l'analyse d'après-match : scores par quart-temps, énergie au 4e, séries de points, courbe de score et carte de tirs.
     this.qs = []; this.q4en = [0, 0]; this.q4n = 0;
     this.run = { side: -1, pts: 0, q: 1 }; this.bestRun = [{ pts: 0 }, { pts: 0 }];
+    this.flow = [{ t: 0, d: 0 }]; this.shots = [];
+    this.leadChanges = 0; this.ties = 0; this.biggestLead = [0, 0]; this.lastLeader = -1;
+    this.lastAiTo = [-999, -999];
     this.starters0 = [this.on[0].slice(), this.on[1].slice()];
     this.firstPoss = this.rng.chance(0.5) ? 0 : 1;
     this.poss = this.firstPoss;
@@ -155,12 +158,33 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   Match.prototype.addPoints = function (side, p, pts) {
     var self = this;
+    var prevDiff = this.score[0] - this.score[1];
     this.score[side] += pts;
     this.stat(p, 'pts', pts);
+    var diff = this.score[0] - this.score[1];
+    if (diff === 0 && prevDiff !== 0) this.ties++;
+    var leader = diff > 0 ? 0 : diff < 0 ? 1 : -1;
+    if (leader >= 0) {
+      if (this.lastLeader >= 0 && leader !== this.lastLeader) this.leadChanges++;
+      this.lastLeader = leader;
+      var gap = Math.abs(diff);
+      if (gap > this.biggestLead[leader]) this.biggestLead[leader] = gap;
+    }
+    this.flow.push({ t: Math.round(this.elapsed), d: diff });
     if (this.run.side === side) this.run.pts += pts; else this.run = { side: side, pts: pts, q: this.q, from: this.score.slice() };
     if (this.run.pts > this.bestRun[side].pts) this.bestRun[side] = { pts: this.run.pts, q: this.run.q, from: this.run.from };
     this.on[side].forEach(function (id) { self.box[id].pm += pts; });
     this.on[1 - side].forEach(function (id) { self.box[id].pm -= pts; });
+  };
+
+  // Scores par quart-temps : renvoie un tableau d'objets { label, s: [pts0, pts1] }.
+  Match.prototype.quarterBreakdown = function () {
+    var snaps = this.qs.slice();
+    if (!this.finished) snaps.push(this.score.slice());
+    return snaps.map(function (sc, i) {
+      var prev = i > 0 ? snaps[i - 1] : [0, 0];
+      return { l: i < 4 ? 'Q' + (i + 1) : 'P' + (i - 3), s: [sc[0] - prev[0], sc[1] - prev[1]] };
+    });
   };
 
   Match.prototype.clutch = function () {
@@ -308,10 +332,69 @@ var BM = globalThis.BM = globalThis.BM || {};
     else this.log('info', side, 'Consigne : retour au jeu collectif.');
   };
 
+  // Met à jour une consigne tactique en direct et recalcule l'avantage d'adéquation/familiarité.
+  Match.prototype.setTactic = function (side, field, val) {
+    this.tac[side][field] = val;
+    var team = this.side[side], saved = team.tactics[field];
+    team.tactics[field] = val;
+    this.edge[side] = BM.tacticEdge(this.g, team);
+    team.tactics[field] = saved;
+  };
+
+  // Coaching IA en direct (uniquement lors des matchs suivis par le joueur).
+  Match.prototype.aiCoach = function (ai) {
+    if (this.user < 0 || ai === this.user || this.finished) return;
+    var opp = 1 - ai, self = this;
+    // Temps mort IA pour casser une grosse série adverse ou un momentum brûlant.
+    if (this.timeouts[ai] > 0 && this.elapsed - this.lastAiTo[ai] >= 110) {
+      if ((this.run.side === opp && this.run.pts >= 9) || (this.mom[opp] >= 86 && this.mom[ai] < 45)) {
+        this.lastAiTo[ai] = this.elapsed;
+        this.timeout(ai);
+      }
+    }
+    // 1re option IA sur un joueur en feu avec mismatch favorable.
+    var cur = this.firstOpt[ai];
+    if (cur && (!this.isHot(cur) || this.on[ai].indexOf(cur) < 0)) this.firstOpt[ai] = null;
+    if (!this.firstOpt[ai]) {
+      var hotId = this.on[ai].find(function (id) { return self.isHot(id) && self.mismatch(ai, id).val >= 3; });
+      if (hotId) this.setFirstOption(ai, hotId);
+    }
+    // Ajustement de fin de match : l'IA accélère et presse si elle est menée dans les 2 dernières minutes.
+    if (this.q >= 4 && this.clock <= 120) {
+      var ld = this.lead(ai);
+      if (ld <= -6 && ld >= -15 && this.tac[ai].pace !== 'rapide') {
+        this.setTactic(ai, 'pace', 'rapide');
+        if (this.tac[ai].defense === 'drop' || this.tac[ai].defense === 'zone') this.setTactic(ai, 'defense', 'blitz');
+      } else if (ld >= 7 && this.tac[ai].pace === 'rapide') {
+        this.setTactic(ai, 'pace', 'normal');
+      }
+    }
+  };
+
+  // Coordonnées déterministes d'un tir (profondeur depuis le cercle en pieds, largeur 0..50).
+  function shotCoords(type, seed, shooterPos) {
+    var h1 = Math.sin(seed * 12.9898 + 78.233) * 43758.5453; h1 = h1 - Math.floor(h1);
+    var h2 = Math.sin(seed * 45.164 + 19.13) * 29831.17; h2 = h2 - Math.floor(h2);
+    if (type === 'rim') {
+      return { depth: +(2.2 + h1 * 3.8).toFixed(1), y: +(20.5 + (h2 - 0.5) * 9).toFixed(1) };
+    }
+    if (type === 'mid') {
+      var angM = (h2 - 0.5) * Math.PI * 0.78, rM = 11 + h1 * 7.5;
+      return { depth: +(Math.cos(angM) * rM).toFixed(1), y: +(BM.clamp(25 + Math.sin(angM) * rM, 5, 45)).toFixed(1) };
+    }
+    // Tir à 3 points : corner (22 pieds) ou arc (24.5-27 pieds).
+    if (h1 < 0.24 && shooterPos !== 'MEN') {
+      return { depth: +(2.5 + h2 * 7.5).toFixed(1), y: h1 < 0.12 ? +(2.8 + h2 * 1.2).toFixed(1) : +(47.2 - h2 * 1.2).toFixed(1) };
+    }
+    var ang3 = (h2 - 0.5) * 2.15, r3 = 24.4 + h1 * 2.8;
+    return { depth: +(Math.max(8, Math.cos(ang3) * r3)).toFixed(1), y: +(BM.clamp(25 + Math.sin(ang3) * r3, 3.2, 46.8)).toFixed(1) };
+  }
+
   // ---------------------------------------------------------------- une possession
   Match.prototype.possession = function () {
     var self = this, rng = this.rng, o = this.poss, d = 1 - o;
     this.rotate(0); this.rotate(1);
+    if (this.user >= 0 && !this.career) { this.aiCoach(0); this.aiCoach(1); }
     var O = this.lineup(o), D = this.lineup(d);
     var pace = PACE_SEC[this.tac[o].pace] || PACE_SEC.normal;
     var sysO = BM.SYSTEMS[this.tac[o].system], sch = this.tac[d].defense;
@@ -336,7 +419,11 @@ var BM = globalThis.BM = globalThis.BM || {};
     var ment = cr ? (BM.CAREER_MENT[cr.ment] || BM.CAREER_MENT.equil) : null, cf = null, cd = null;
     if (cr && cr.side === o && cr.next) { cf = meOn ? cr.next : null; cr.next = null; }
     if (cr && cr.side === d && cr.nextDef) { cd = meOn ? cr.nextDef : null; cr.nextDef = null; }
-    this.play = { o: o, q: this.q, dur: dur, fast: fast, putback: putback, on: [this.on[0].slice(), this.on[1].slice()], kind: 'none' };
+    var sysKey = this.tac[o].system;
+    var action = fast ? 'transition' : putback ? 'putback' : sysKey === 'iso' ? 'iso' : sysKey === 'post' ? 'post' : sysKey === 'motion' ? 'motion' : sysKey === 'princeton' ? 'cut' : 'pnr';
+    var bigsO = O.filter(function (p) { return p.pos === 'PIV' || p.pos === 'AF'; });
+    var screener = bigsO.length ? bigsO[0].id : (O[O.length - 1] ? O[O.length - 1].id : null);
+    this.play = { o: o, q: this.q, dur: dur, fast: fast, putback: putback, action: action, screener: screener, on: [this.on[0].slice(), this.on[1].slice()], kind: 'none' };
     this.tick(dur);
     if (this.q >= 4) {
       this.q4n++;
@@ -440,13 +527,15 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (cf && cf.fast) fast = true;
     var mm = shooter.id === fo ? this.mismatch(o, fo) : null;
     var type = fast ? (rng.chance(0.8) ? 'rim' : 'three') : putback && rng.chance(0.6) ? 'rim' : this.shotType(shooter, o, d);
-    // Menés de 3 dans les dernières secondes : il faut un tir à 3 points.
-    if (this.q >= 4 && this.clock <= 24 && this.lead(o) === -3) type = 'three';
+    // Menés de 3 dans les dernières secondes : il faut un tir à 3 points ; menés de 2 : priorité au panier d'égalisation.
+    if (this.q >= 4 && this.clock <= 24 && ld === -3) type = 'three';
+    else if (this.q >= 4 && this.clock <= 18 && ld === -2 && type === 'three' && shooter.attrs.fin >= shooter.attrs.tir3) type = 'rim';
     // La 1re option attaque son mismatch : poste bas s'il est intérieur.
-    if (mm && mm.val >= 2 && mm.kind === 'int' && !fast && rng.chance(0.6)) type = 'rim';
+    if (mm && mm.val >= 2 && mm.kind === 'int' && !fast && rng.chance(0.6)) { type = 'rim'; this.play.action = 'post'; }
     if (cf && cf.type) type = cf.type;
     var df = this.matchup(shooter, o, D);
-    this.play.kind = 'shot'; this.play.shooter = shooter.id; this.play.type = type; this.play.made = false;
+    var sp = shotCoords(type, this.possCount * 31 + shooter.id * 7 + Math.round(this.clock), shooter.pos);
+    this.play.kind = 'shot'; this.play.shooter = shooter.id; this.play.type = type; this.play.made = false; this.play.spot = sp;
     var e = function (k) { return a(shooter, k); }, f = function (k) { return a(df, k); };
     var prob, pts = type === 'three' ? 3 : 2;
     if (type === 'rim') {
@@ -499,8 +588,11 @@ var BM = globalThis.BM = globalThis.BM || {};
       if (cd) prob += cd.bonus || 0;
     }
     prob = BM.clamp(prob, 0.12, 0.88);
-    // Dernière possession décisive : défense resserrée, tir très disputé.
-    if (this.q >= 4 && this.clock <= 24 && this.lead(o) === 0) prob -= 0.12;
+    // Dernière possession décisive : défense resserrée à égalité, système dessiné pour égaliser à -2 ou -3.
+    if (this.q >= 4 && this.clock <= 24) {
+      if (ld === 0) prob -= 0.15;
+      else if (ld === -2 || ld === -3) prob = Math.min(0.85, prob + 0.055);
+    }
     if (heave) { type = 'three'; pts = 3; prob = 0.08; this.play.type = type; }
 
     // Défense du joueur : passage en force ou tentative de contre décidés lors d'un moment clé.
@@ -533,6 +625,7 @@ var BM = globalThis.BM = globalThis.BM || {};
         var blocker = rng.chance(0.65) ? df : rng.weighted(D, function (p) { return Math.pow(a(p, 'ctr'), 2); });
         this.stat(blocker, 'blk'); this.stat(shooter, 'fga');
         this.play.blocker = blocker.id;
+        this.shots.push({ side: o, pid: shooter.id, q: this.q, depth: sp.depth, y: sp.y, type: type, made: false, blk: true, pts: 0 });
         this.afterShot(o, shooter, false, pts);
         this.addMomentum(d, 4);
         this.log('play', d, 'Contre de ' + this.name(blocker) + ' sur ' + this.name(shooter) + ' !');
@@ -567,9 +660,11 @@ var BM = globalThis.BM = globalThis.BM || {};
         this.stat(passer, 'ast');
         this.play.passer = passer.id;
       }
-      this.log('score', o, this.madeText(shooter, type, fast) + (passer ? ' (passe de ' + this.name(passer) + ')' : ''));
+      var txt = this.madeText(shooter, type, fast, passer);
+      this.shots.push({ side: o, pid: shooter.id, q: this.q, depth: sp.depth, y: sp.y, type: type, made: true, dunk: !!this.play.dunk, pts: pts });
+      this.log('score', o, txt + (passer && !this.play.alleyOop ? ' (passe de ' + this.name(passer) + ')' : ''));
       if (fouled) {
-        this.log('foul', d, 'Panier + faute !');
+        this.log('foul', d, 'Panier + faute (And-One) !');
         if (this.freeThrows(o, shooter, 1)) this.switchPoss(); else this.rebound(o);
       } else {
         this.switchPoss();
@@ -583,18 +678,38 @@ var BM = globalThis.BM = globalThis.BM || {};
     }
     this.stat(shooter, 'fga');
     if (pts === 3) this.stat(shooter, 'tpa');
+    this.shots.push({ side: o, pid: shooter.id, q: this.q, depth: sp.depth, y: sp.y, type: type, made: false, pts: 0 });
     this.log('miss', o, this.missText(shooter, type));
     this.rebound(o);
   };
 
-  Match.prototype.madeText = function (p, type, fast) {
-    var n = this.name(p), r = this.rng;
-    if (type === 'three') return r.pick([n + ' plante le tir à 3 points !', n + ' sanctionne de loin !', 'Banderille de ' + n + ' derrière l\'arc !']);
-    if (type === 'mid') return r.pick([n + ' réussit son tir à mi-distance.', 'Pull-up de ' + n + ', dedans.', n + ' trouve la cible en tête de raquette.']);
-    if (fast) return r.pick(['Contre-attaque conclue par ' + n + ' !', n + ' s\'envole en transition !']);
+  Match.prototype.madeText = function (p, type, fast, passer) {
+    var n = this.name(p), r = this.rng, act = this.play ? this.play.action : '';
+    if (type === 'three') {
+      if (p.attrs.drb >= 15 && act === 'iso') {
+        if (this.play) this.play.move = 'stepback';
+        return r.pick(['Step-back à 3 points de ' + n + ', ficelle !', n + ' crée l\'écart en step-back et sanctionne à 3 pts !', 'Banderille de ' + n + ' derrière l\'arc !']);
+      }
+      return r.pick([n + ' plante le tir à 3 points !', n + ' sanctionne de loin !', 'Banderille de ' + n + ' derrière l\'arc !', 'Catch & shoot parfait de ' + n + ' à 3 pts !']);
+    }
+    if (type === 'mid') return r.pick([n + ' réussit son tir à mi-distance.', 'Pull-up soyeux de ' + n + ', dedans.', n + ' trouve la cible en tête de raquette.', 'Fadeaway de ' + n + ' à mi-distance !']);
+    if (fast) {
+      if (p.attrs.det >= 14 && this.play) this.play.dunk = true;
+      return r.pick(['Contre-attaque conclue par ' + n + ' !', n + ' s\'envole en transition !', 'Coast-to-coast éclair de ' + n + ' !']);
+    }
     if (p.attrs.det >= 14 && r.chance(0.45)) {
-      if (this.play) this.play.dunk = true;
-      return r.pick(['Dunk de ' + n + ' !', 'Smash rageur de ' + n + ' !']);
+      if (this.play) {
+        this.play.dunk = true;
+        if (passer && passer.attrs.pas >= 14 && p.attrs.det >= 15) {
+          this.play.alleyOop = true;
+          return 'Alley-oop stratosphérique de ' + n + ' sur le caviar de ' + this.name(passer) + ' !';
+        }
+      }
+      return r.pick(['Dunk de ' + n + ' !', 'Smash rageur de ' + n + ' !', n + ' écrase le cercle à deux mains !']);
+    }
+    if (p.attrs.drb >= 15 && act === 'pnr') {
+      if (this.play) this.play.move = 'floater';
+      return r.pick(['Floater tout en toucher de ' + n + '.', 'Eurostep de ' + n + ' qui finit au cercle !', 'Lay-up de ' + n + '.']);
     }
     return r.pick(['Lay-up de ' + n + '.', n + ' conclut près du cercle.', n + ' marque en force sous le panier.']);
   };

@@ -178,15 +178,24 @@ UI.tab_home = function () {
   var g = UI.g, me = g.teams[g.userTeam];
   var confPos = BM.standings(g, me.conf).indexOf(me) + 1;
   var next = BM.nextUserFixture(g), nextHtml;
+  var topStar = function (t) {
+    return BM.availablePlayers(g, t).sort(function (x, y) { return BM.ovrRaw(y) - BM.ovrRaw(x); })[0] || BM.roster(g, t)[0];
+  };
   if (next) {
     var h = g.teams[next.home], a = g.teams[next.away];
+    var sh = topStar(h), sa = topStar(a);
     var label = next.type === 'playoff' ? BM.ROUND_NAMES[next.round] + ' · match ' + next.game : 'Journée ' + next.round;
     var today = next.day === g.day;
-    nextHtml = '<div class="card hero-card"><div class="card-h"><h2>' + (today ? 'Match aujourd\'hui' : 'Prochain match') + '</h2><span class="small muted">' + UI.esc(BM.dateLabel(g, next.day)) + '</span></div>' +
-      '<div class="vs"><div class="t">' + UI.teamBadge(h) + UI.esc(h.name) + '<span class="small muted">' + h.record.w + 'V-' + h.record.l + 'D</span></div>' +
-      '<div class="mid">VS<small>' + label + '</small></div>' +
-      '<div class="t">' + UI.teamBadge(a) + UI.esc(a.name) + '<span class="small muted">' + a.record.w + 'V-' + a.record.l + 'D</span></div></div>' +
-      (today ? '<div style="margin-top:12px"><button class="btn primary block" data-act="continue">Aller au match</button></div>' : '') +
+    nextHtml = '<div class="card hero-card"><div class="card-h"><h2>' + (today ? '🔥 Jour de match' : 'Prochain match') + '</h2><span class="small muted">' + UI.esc(BM.dateLabel(g, next.day)) + ' · ' + label + '</span></div>' +
+      '<div class="vs"><div class="t">' + UI.teamBadge(h) + UI.esc(h.name) + '<span class="small muted">' + h.record.w + 'V-' + h.record.l + 'D · série ' + (h.record.streak || '-') + '</span></div>' +
+      '<div class="mid">VS<small>' + (next.home === g.userTeam ? 'DOMICILE' : 'EXTÉRIEUR') + '</small></div>' +
+      '<div class="t">' + UI.teamBadge(a) + UI.esc(a.name) + '<span class="small muted">' + a.record.w + 'V-' + a.record.l + 'D · série ' + (a.record.streak || '-') + '</span></div></div>' +
+      (sh && sa ? '<div class="star-duel">' +
+        '<div class="sd-side click" data-act="player" data-id="' + sh.id + '">' + BM.portrait(sh, h, 42) + '<div><b>' + UI.esc(BM.shortName(sh)) + '</b> ' + UI.ovrBadge(BM.ovr(sh)) + '<div class="small muted">' + UI.per(sh, 'pts') + ' pts · ' + UI.per(sh, 'reb') + ' reb · ' + UI.per(sh, 'ast') + ' pd</div></div></div>' +
+        '<span class="sd-vs">DUEL</span>' +
+        '<div class="sd-side right click" data-act="player" data-id="' + sa.id + '"><div><b>' + UI.esc(BM.shortName(sa)) + '</b> ' + UI.ovrBadge(BM.ovr(sa)) + '<div class="small muted">' + UI.per(sa, 'pts') + ' pts · ' + UI.per(sa, 'reb') + ' reb · ' + UI.per(sa, 'ast') + ' pd</div></div>' + BM.portrait(sa, a, 42) + '</div>' +
+      '</div>' : '') +
+      (today ? '<div style="margin-top:12px"><button class="btn primary block" data-act="continue">🏀 Aller au match</button></div>' : '') +
       '</div>';
   } else {
     nextHtml = '<div class="card"><h2>Aucun match programmé</h2><p class="small muted">' + (g.phase === 'playoffs' ? 'Votre équipe est éliminée. Les playoffs continuent.' : 'Fin de saison en approche.') + '</p></div>';
@@ -197,6 +206,16 @@ UI.tab_home = function () {
   var conf = g.board.confidence;
   var msgs = g.inbox.slice(0, 20);
   var icons = { board: '🏛', match: '🏀', medical: '✚', transfer: '⇄', finance: '$', info: '✉', dev: '📈', scout: '🔭', media: '🎤', dyn: '👥' };
+  var ptsLeaders = BM.leaders(g, 'pts', 3);
+  var tickerHtml = ptsLeaders.length ? '<div class="card ticker-card"><div class="card-h"><h3>À la une NBA · Leaders au scoring</h3><span class="small muted">Saison ' + g.season + '</span></div>' +
+    '<div class="ticker-row">' + ptsLeaders.map(function (p, idx) {
+      var pt = g.teams[p.teamId];
+      return '<div class="ticker-item click" data-act="player" data-id="' + p.id + '">' +
+        BM.portrait(p, pt, 34) +
+        '<div><b>#' + (idx + 1) + ' ' + UI.esc(BM.shortName(p)) + '</b> <span class="muted small">' + (pt ? pt.short : '') + '</span>' +
+        '<div class="small" style="color:var(--accent);font-weight:700">' + UI.per(p, 'pts') + ' PTS · ' + UI.per(p, 'reb') + ' REB · ' + UI.per(p, 'ast') + ' PD</div></div></div>';
+    }).join('') + '</div></div>' : '';
+
   return nextHtml +
     '<div class="grid2">' +
     '<div class="kpi"><b><span data-count="' + confPos + '">' + confPos + '</span><sup>e</sup></b><span>' + UI.esc(BM.CONFERENCES[me.conf]) + ' · ' + me.record.w + 'V-' + me.record.l + 'D</span></div>' +
@@ -204,6 +223,7 @@ UI.tab_home = function () {
     '<div class="kpi"><b data-count="' + morale + '">' + morale + '</b><span>Moral moyen</span>' + UI.bar(morale) + '</div>' +
     '<div class="kpi"><b data-count="' + injured + '">' + injured + '</b><span>Blessé(s) · cohésion ' + Math.round(me.cohesion) + '</span></div>' +
     '</div>' +
+    tickerHtml +
     '<div class="card"><div class="card-h"><h2>Messagerie</h2><span class="small muted">Objectif : ' + BM.OBJECTIVES[g.objective] + '</span></div>' +
     (msgs.length ? msgs.map(function (m) {
       return '<div class="msg' + (m.read ? '' : ' unread') + '" data-act="openMsg" data-id="' + m.id + '"><div class="ic">' + (icons[m.type] || '✉') + '</div><div style="min-width:0">' +
@@ -335,15 +355,19 @@ UI.showPlayer = function (id) {
   if (mine) {
     actions = '<div class="btn-row">' +
       '<button class="btn" data-act="extendForm" data-id="' + p.id + '">Prolonger</button>' +
-      '<button class="btn" data-act="toggleList" data-id="' + p.id + '">' + (p.listed ? 'Retirer de la liste' : 'Placer sur la liste des transferts') + '</button>' +
+      '<button class="btn" data-act="shopPlayer" data-id="' + p.id + '">Chercher un échange</button>' +
+      '<button class="btn" data-act="toggleList" data-id="' + p.id + '">' + (p.listed ? 'Retirer de la liste' : 'Placer sur la liste') + '</button>' +
       '<button class="btn danger" data-act="releaseAsk" data-id="' + p.id + '">Libérer</button></div>';
   } else {
     actions = p.prospect ? '<p class="hint" style="margin:0">Prospect de la draft (' + UI.esc(p.college) + ') : disponible le soir de la draft.</p>'
-      : '<button class="btn primary block" data-act="offerForm" data-id="' + p.id + '">' + (team ? 'Faire une offre de rachat' : 'Proposer un contrat') + '</button>';
+      : '<div class="btn-row"><button class="btn primary" style="flex:1" data-act="offerForm" data-id="' + p.id + '">' + (team ? 'Offre de rachat' : 'Proposer un contrat') + '</button>' +
+        (team ? '<button class="btn" style="flex:1" data-act="jumpTrade" data-id="' + p.id + '">⇄ Négocier un échange</button>' : '') + '</div>';
     if (BM.knowledge(g, p) < 100) actions += '<button class="btn block" data-act="scoutPlayer" data-id="' + p.id + '">Faire observer par un scout</button>';
   }
   var progress = p.lastProgress && g.day - p.lastProgress.day <= 14
     ? '<p class="small" style="margin:0;color:var(--good)">Progression récente : ' + UI.esc(BM.ATTRS.find(function (a) { return a.k === p.lastProgress.k; }).l) + ' +1</p>' : '';
+  var radarHtml = BM.radarSvg ? '<div class="card radar-card"><div class="card-h"><h3>Profil radar 6 axes</h3><span class="small muted">Archétype ' + BM.POS_LABEL[p.pos].toLowerCase() + '</span></div>' +
+    '<div class="radar-wrap">' + BM.radarSvg(p, team ? team.color : '#ff7a1a', 186) + '</div></div>' : '';
   UI.modal(
     '<div class="modal-h player-h">' + BM.portrait(p, team, 76) +
     '<div><h2>' + (team ? UI.teamBadge(team, true) + ' ' : '') + UI.esc(BM.fullName(p)) + '</h2><span class="small muted">' + BM.POS_LABEL[p.pos] + ' · ' + p.age + ' ans · ' + p.height + ' cm · ' + (team ? UI.esc(team.name) : 'Agent libre') + '</span></div>' +
@@ -354,7 +378,7 @@ UI.showPlayer = function (id) {
     '<div class="kpi"><b>' + BM.money(p.contract.salary) + '</b><span>' + p.contract.years + ' saison(s) restante(s) · valeur ' + BM.money(BM.playerValue(p)) + '</span></div>' +
     '<div class="kpi"><b>' + Math.round(p.condition) + '%</b><span>Condition physique' + (p.injury > 0 ? ' · blessé ' + p.injury + ' j' : '') + '</span>' + UI.bar(p.condition) + '</div>' +
     '<div class="kpi"><b>' + Math.round(p.morale) + '</b><span>Moral · forme ' + UI.avgForm(p) + '</span>' + UI.bar(p.morale) + '</div>' +
-    '</div>' + progress + (mine ? UI.moodCard(p) + UI.devCard(p) : '') + UI.gravityCard(p) +
+    '</div>' + progress + (mine ? UI.moodCard(p) + UI.devCard(p) : '') + radarHtml + UI.gravityCard(p) +
     (p.awards && p.awards.length ? '<div class="card"><h3 style="margin-bottom:6px">Palmarès</h3><p class="small" style="margin:0">' + p.awards.slice(-8).reverse().map(function (a) {
       return '<span class="tag legend" style="margin:2px">' + UI.esc(a.t) + ' ' + (2026 + a.s) + '</span>';
     }).join(' ') + '</p></div>' : '') +
@@ -463,6 +487,47 @@ UI.seg = function (field, options, value) {
   }).join('') + '</div><p class="hint" style="margin:0">' + UI.esc((options.find(function (o) { return o.v === value; }) || {}).d || '') + '</p>';
 };
 
+UI.halfCourtLineupSvg = function (g, team) {
+  var t = team.tactics, sys = t.system;
+  var coords = sys === '5out'
+    ? [[130, 152], [46, 122], [214, 122], [22, 42], [238, 42]]
+    : sys === 'post'
+    ? [[130, 150], [48, 118], [212, 118], [84, 54], [168, 44]]
+    : [[130, 150], [46, 115], [218, 42], [68, 86], [174, 52]];
+  var slots = ['MEN', 'ARR', 'AIL', 'AF', 'PIV'];
+  var nodes = slots.map(function (posLbl, i) {
+    var pid = t.starters[i], p = pid ? g.players[pid] : null;
+    var xy = coords[i];
+    var nm = p ? BM.shortName(p) : posLbl;
+    var ovr = p ? BM.ovr(p) : '--';
+    return '<g class="hc-node" transform="translate(' + xy[0] + ',' + xy[1] + ')"' + (p ? ' data-act="player" data-id="' + p.id + '" style="cursor:pointer"' : '') + '>' +
+      '<circle r="18" fill="rgba(0,0,0,0.45)" cy="3"/>' +
+      '<circle r="17" fill="' + team.color + '" stroke="#ffffff" stroke-width="2"/>' +
+      '<text y="-2" text-anchor="middle" fill="#fff" font-size="9" font-weight="800">' + posLbl + '</text>' +
+      '<text y="9" text-anchor="middle" fill="#ffd43b" font-size="10" font-weight="800">' + ovr + '</text>' +
+      '<rect x="-36" y="20" width="72" height="14" rx="4" fill="rgba(10,14,23,0.86)" stroke="rgba(255,255,255,0.16)" stroke-width="0.8"/>' +
+      '<text y="30" text-anchor="middle" fill="#eef1f6" font-size="8.5" font-weight="700">' + UI.esc(nm.slice(0, 12)) + '</text>' +
+      '</g>';
+  }).join('');
+
+  // Flèches tactiques illustratives selon le système.
+  var arrows = sys === 'pnr'
+    ? '<path d="M 156 58 L 142 132" stroke="#ffd43b" stroke-width="1.6" stroke-dasharray="3,3" fill="none"/><path d="M 130 150 Q 165 125 170 75" stroke="rgba(255,255,255,0.45)" stroke-width="1.6" fill="none"/>'
+    : sys === '5out'
+    ? '<path d="M 130 152 L 46 122 L 22 42 M 130 152 L 214 122 L 238 42" stroke="rgba(255,255,255,0.32)" stroke-width="1.4" stroke-dasharray="3,3" fill="none"/>'
+    : '<path d="M 130 150 L 168 44 M 84 54 L 130 34" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" stroke-dasharray="3,3" fill="none"/>';
+
+  return '<svg viewBox="0 0 260 195" class="hc-board" aria-label="Disposition du cinq majeur">' +
+    '<defs><linearGradient id="hcWood" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#222b3d"/><stop offset="100%" stop-color="#141a28"/></linearGradient></defs>' +
+    '<rect x="2" y="2" width="256" height="191" rx="12" fill="url(#hcWood)" stroke="rgba(255,255,255,0.16)" stroke-width="1.5"/>' +
+    '<rect x="90" y="6" width="80" height="86" fill="' + team.color + '" fill-opacity="0.22" stroke="rgba(255,255,255,0.3)" stroke-width="1.2"/>' +
+    '<circle cx="130" cy="92" r="28" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1.2"/>' +
+    '<path d="M 18 6 L 18 70 A 114 114 0 0 0 242 70 L 242 6" fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="1.4"/>' +
+    '<line x1="115" y1="22" x2="145" y2="22" stroke="#fff" stroke-width="2.2"/>' +
+    '<circle cx="130" cy="28" r="5" fill="none" stroke="#ff7a1a" stroke-width="1.8"/>' +
+    arrows + nodes + '</svg>';
+};
+
 UI.tactics_plan = function () {
   var g = UI.g, me = g.teams[g.userTeam], t = me.tactics, O = BM.TACTIC_OPTIONS;
   var roster = BM.roster(g, me).sort(function (a, b) { return BM.POSITIONS.indexOf(a.pos) - BM.POSITIONS.indexOf(b.pos) || BM.ovrRaw(b) - BM.ovrRaw(a); });
@@ -483,14 +548,17 @@ UI.tactics_plan = function () {
     '<div class="card"><div class="card-h"><h2>Schéma défensif</h2></div><div class="tac-grid">' + card('defense', BM.SCHEMES, 'def', BM.schemeFit, t.defense) + '</div>' +
     '<p class="hint" style="margin:10px 0 0">La familiarité monte avec les matchs et l\'entraînement « Tactique » ; changer de système repart d\'une familiarité basse.</p></div>' +
     '<div class="card" style="display:grid;gap:10px"><h2>Rythme</h2>' + UI.seg('pace', O.pace, t.pace) + '</div>' +
-    '<div class="card" style="display:grid;gap:10px"><div class="card-h" style="margin:0"><h2>Cinq de départ</h2><button class="btn sm" data-act="autoTactics">Auto</button></div>' +
+    '<div class="card" style="display:grid;gap:12px"><div class="card-h" style="margin:0"><h2>Tableau tactique & Cinq de départ</h2><button class="btn sm" data-act="autoTactics">Auto</button></div>' +
+    '<div class="lineup-layout">' +
+    UI.halfCourtLineupSvg(g, me) +
+    '<div style="display:grid;gap:8px">' +
     slots.map(function (label, i) {
       return '<div class="field"><label>' + label + '</label><select data-change="starter" data-i="' + i + '">' +
         '<option value="">—</option>' + roster.map(function (p) {
           return '<option value="' + p.id + '"' + (t.starters[i] === p.id ? ' selected' : '') + (p.injury > 0 ? ' disabled' : '') + '>' +
             p.pos + ' · ' + UI.esc(BM.shortName(p)) + ' (' + BM.ovr(p) + ')' + (p.injury > 0 ? ' – blessé' : '') + '</option>';
         }).join('') + '</select></div>';
-    }).join('') + '</div>';
+    }).join('') + '</div></div></div>';
 };
 
 UI.stars = function (n) {
@@ -664,19 +732,30 @@ UI.comp_stats = function () {
 
 UI.comp_playoffs = function () {
   var g = UI.g, po = g.playoffs;
-  if (!po) return '<div class="card"><h2>Playoffs</h2><p class="muted">Les 8 premiers de chaque conférence se qualifient. Séries au meilleur des 5 matchs, finales au meilleur des 7.</p></div>';
-  var rounds = [1, 2, 3, 4];
-  return rounds.map(function (r) {
-    var ss = po.series.filter(function (s) { return s.round === r; });
-    if (!ss.length) return '';
-    return '<div class="card"><h2 style="margin-bottom:8px">' + BM.ROUND_NAMES[r] + '</h2>' + ss.map(function (s) {
-      var a = g.teams[s.a], b = g.teams[s.b];
-      var line = function (t, w, won) {
-        return '<div class="attr"><span style="' + (won ? 'font-weight:700' : '') + '">' + UI.teamBadge(t, true) + ' ' + UI.esc(t.name) + '</span><b>' + w + '</b></div>';
-      };
-      return '<div style="padding:6px 0;border-bottom:1px solid var(--border)">' + line(a, s.wa, s.winner === s.a) + line(b, s.wb, s.winner === s.b) + '</div>';
-    }).join('') + '</div>';
-  }).join('') + (po.champion !== undefined ? '<div class="card"><h2>🏆 ' + UI.esc(g.teams[po.champion].name) + '</h2></div>' : '');
+  if (!po) return '<div class="card"><h2>Arbre des Playoffs</h2><p class="muted">Les 8 premiers de chaque conférence se qualifient. Séries au meilleur des 5 matchs (1er tour, demi-finales, finales de conférence), puis Finales NBA au meilleur des 7.</p></div>';
+  var seriesCard = function (s) {
+    var a = g.teams[s.a], b = g.teams[s.b];
+    var isUser = s.a === g.userTeam || s.b === g.userTeam;
+    var row = function (t, w, won) {
+      return '<div class="po-team' + (won ? ' won' : '') + '"><span>' + UI.teamBadge(t, true) + ' ' + UI.esc(t.short) + ' <small class="muted">' + UI.esc(t.nick) + '</small></span><b class="po-w">' + w + '</b></div>';
+    };
+    return '<div class="po-series' + (isUser ? ' me' : '') + '">' + row(a, s.wa, s.winner === s.a) + row(b, s.wb, s.winner === s.b) + '</div>';
+  };
+  var confTree = function (conf, title) {
+    var r1 = po.series.filter(function (s) { return s.round === 1 && s.conf === conf; });
+    var r2 = po.series.filter(function (s) { return s.round === 2 && s.conf === conf; });
+    var r3 = po.series.filter(function (s) { return s.round === 3 && s.conf === conf; });
+    return '<div class="card"><div class="card-h"><h2>' + title + '</h2><span class="small muted">Tableau des séries</span></div>' +
+      '<div class="po-bracket">' +
+      '<div class="po-col"><div class="po-hdr">1er tour</div>' + r1.map(seriesCard).join('') + '</div>' +
+      '<div class="po-col"><div class="po-hdr">Demi-finales</div>' + (r2.length ? r2.map(seriesCard).join('') : '<div class="muted small">En attente</div>') + '</div>' +
+      '<div class="po-col"><div class="po-hdr">Finale Conf.</div>' + (r3.length ? r3.map(seriesCard).join('') : '<div class="muted small">En attente</div>') + '</div>' +
+      '</div></div>';
+  };
+  var finals = po.series.filter(function (s) { return s.round === 4; });
+  var finHtml = finals.length ? '<div class="card hero-card"><div class="card-h"><h2>🏆 Finales NBA · Meilleur des 7</h2></div>' + finals.map(seriesCard).join('') + '</div>' : '';
+  return (po.champion !== undefined ? '<div class="card hero-card" style="text-align:center"><h2>🏆 Champion NBA : ' + UI.esc(g.teams[po.champion].name) + '</h2></div>' : '') +
+    finHtml + confTree('E', 'Conférence Est') + confTree('W', 'Conférence Ouest');
 };
 
 UI.comp_history = function () {
@@ -690,8 +769,12 @@ UI.comp_history = function () {
 UI.actions.boxScore = function (el) {
   var g = UI.g, f = g.fixtures.find(function (x) { return x.id === +el.dataset.id; });
   if (!f || !f.box) return;
-  UI.modal('<div class="modal-h"><h2>' + UI.esc(g.teams[f.home].short + ' ' + f.hs + ' - ' + f.as + ' ' + g.teams[f.away].short) + '</h2><button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
-    UI.whyCard(f.why) + UI.boxTable(g, f.box, 0, g.teams[f.home]) + UI.boxTable(g, f.box, 1, g.teams[f.away]));
+  var h = g.teams[f.home], a = g.teams[f.away];
+  UI.modal('<div class="modal-h"><h2>' + UI.esc(h.short + ' ' + f.hs + ' – ' + f.as + ' ' + a.short) + '</h2><button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
+    (UI.quarterTable && f.qPts ? '<div class="card">' + UI.quarterTable(f.qPts, h, a, f.hs, f.as) + '</div>' : '') +
+    UI.whyCard(f.why) +
+    (UI.matchAnalyticsCard ? UI.matchAnalyticsCard(f, h, a) : '') +
+    UI.boxTable(g, f.box, 0, h) + UI.boxTable(g, f.box, 1, a));
 };
 
 // Explications d'après-match : les facteurs qui ont décidé de la rencontre, avec leur poids estimé.
@@ -1129,7 +1212,7 @@ UI.comp_awards = function () {
 };
 
 // ==================================================================== échanges
-UI.trade = UI.trade || { partner: null, give: {}, get: {} };
+UI.trade = UI.trade || { partner: null, give: {}, get: {}, offers: null };
 UI.market_trade = function () {
   var g = UI.g, me = g.teams[g.userTeam], T = UI.trade;
   if (T.partner === null || T.partner === g.userTeam) T.partner = g.teams.find(function (t) { return t.id !== g.userTeam; }).id;
@@ -1144,27 +1227,77 @@ UI.market_trade = function () {
   var sum = function (side) { return Object.keys(T[side]).reduce(function (s, id) { return s + g.players[id].contract.salary; }, 0); };
   var giveIds = Object.keys(T.give).map(Number), getIds = Object.keys(T.get).map(Number);
   var ev = giveIds.length && getIds.length ? BM.evalTrade(g, T.partner, giveIds, getIds) : null;
+  var offersHtml = '';
+  if (T.offers) {
+    offersHtml = '<div class="card"><div class="card-h"><h3>Propositions des GM IA</h3><span class="small muted">' + T.offers.length + ' offre(s)</span></div>' +
+      (T.offers.length ? T.offers.map(function (o, idx) {
+        var pt = g.teams[o.partnerId];
+        var gNames = o.give.map(function (id) { return UI.esc(BM.shortName(g.players[id])); }).join(' + ');
+        var rNames = o.get.map(function (id) { var p = g.players[id]; return '<b>' + UI.esc(BM.shortName(p)) + '</b> (' + p.pos + ', ' + BM.ovr(p) + ')'; }).join(' + ');
+        return '<div class="rec"><div>' + UI.teamBadge(pt, true) + ' <b>' + UI.esc(pt.name) + '</b> propose ' + rNames +
+          '<p>Contre : ' + gNames + '</p></div><button class="btn sm primary" data-act="loadTradeOffer" data-i="' + idx + '">Charger</button></div>';
+      }).join('') : '<p class="muted small" style="margin:0">Aucune offre équilibrée trouvée pour cette sélection (vérifiez le plafond salarial ou ajoutez un joueur).</p>') + '</div>';
+  }
   return '<div class="card"><div class="card-h"><h2>Échanges</h2><span class="tag ' + (open ? 'good' : 'bad') + '">' + (open ? 'Marché ouvert' : 'Date limite passée') + '</span></div>' +
     '<div class="field"><label>Partenaire</label><select class="sel" data-change="tradePartner">' + g.teams.filter(function (t) { return t.id !== g.userTeam; }).map(function (t) {
       return '<option value="' + t.id + '"' + (t.id === T.partner ? ' selected' : '') + '>' + UI.esc(t.name) + ' (' + t.record.w + '-' + t.record.l + ')</option>';
     }).join('') + '</select></div>' +
+    '<div style="margin-top:8px"><button class="btn block" data-act="findTrades"' + (open ? '' : ' disabled') + '>🔍 Chercher des offres IA ' + (giveIds.length ? '(pour vos joueurs cochés)' : getIds.length ? '(pour la cible cochée)' : '(pistes automatiques)') + '</button></div>' +
     '<p class="hint" style="margin:8px 0 0">Règle salariale : au-dessus du plafond, vous ne pouvez pas recevoir plus de 125 % (+250 k$) des salaires envoyés. Les clubs en reconstruction privilégient jeunesse et potentiel, les candidats au titre le niveau immédiat.</p></div>' +
+    offersHtml +
     '<div class="card"><div class="card-h"><h3>Vous envoyez</h3><span class="small muted">' + BM.money(sum('give')) + '</span></div>' + BM.roster(g, me).sort(function (a, b) { return BM.ovrRaw(b) - BM.ovrRaw(a); }).map(function (p) { return row(p, 'give'); }).join('') + '</div>' +
     '<div class="card"><div class="card-h"><h3>Vous recevez de ' + UI.esc(ai.short) + '</h3><span class="small muted">' + BM.money(sum('get')) + '</span></div>' + BM.roster(g, ai).sort(function (a, b) { return BM.ovrRaw(b) - BM.ovrRaw(a); }).map(function (p) { return row(p, 'get'); }).join('') + '</div>' +
-    '<div class="card">' + (ev ? '<p style="margin:0 0 8px"><span class="tag ' + (ev.ok ? 'good' : ev.mood === 'hésite' ? 'warn' : 'bad') + '">' + (ev.ok ? 'Probable : accepté' : ev.mood === 'hésite' ? 'Ils hésitent' : 'Refus probable') + '</span> ' + UI.esc(ev.msg) + '</p>' : '<p class="muted small" style="margin:0 0 8px">Cochez des joueurs des deux côtés.</p>') +
+    '<div class="card">' + (ev ? '<p style="margin:0 0 8px"><span class="tag ' + (ev.ok ? 'good' : ev.mood === 'hésite' ? 'warn' : 'bad') + '">' + (ev.ok ? 'Probable : accepté' : ev.mood === 'hésite' ? 'Ils hésitent' : 'Refus probable') + '</span> ' + UI.esc(ev.msg) + '</p>' : '<p class="muted small" style="margin:0 0 8px">Cochez des joueurs des deux côtés ou lancez la recherche d\'offres IA.</p>') +
     '<button class="btn primary block" data-act="proposeTrade"' + (ev && open ? '' : ' disabled') + '>Proposer l\'échange</button></div>';
 };
 
-UI.changes.tradePartner = function (el) { UI.trade = { partner: +el.value, give: {}, get: {} }; UI.render(); };
+UI.changes.tradePartner = function (el) { UI.trade = { partner: +el.value, give: {}, get: {}, offers: null }; UI.render(); };
 UI.changes.tradePick = function (el) {
   var side = el.dataset.side, id = +el.dataset.id;
   if (el.checked) UI.trade[side][id] = 1; else delete UI.trade[side][id];
+  UI.trade.offers = null;
+  UI.render();
+};
+UI.actions.findTrades = function () {
+  var g = UI.g, T = UI.trade;
+  var giveIds = Object.keys(T.give).map(Number), getIds = Object.keys(T.get).map(Number);
+  T.offers = BM.findTradeOffers ? BM.findTradeOffers(g, giveIds, getIds) : [];
+  UI.render();
+};
+UI.actions.loadTradeOffer = function (el) {
+  var T = UI.trade, o = T.offers && T.offers[+el.dataset.i];
+  if (!o) return;
+  T.partner = o.partnerId;
+  T.give = {}; o.give.forEach(function (id) { T.give[id] = 1; });
+  T.get = {}; o.get.forEach(function (id) { T.get[id] = 1; });
+  UI.toast('Offre chargée : vérifiez et validez l\'échange.');
+  UI.render();
+};
+UI.actions.jumpTrade = function (el) {
+  var g = UI.g, p = g.players[+el.dataset.id];
+  if (!p || p.teamId === null) return;
+  UI.closeModal();
+  UI.tab = 'market'; UI.sub.market = 'trade';
+  UI.trade = { partner: p.teamId, give: {}, get: {}, offers: null };
+  UI.trade.get[p.id] = 1;
+  if (BM.findTradeOffers) UI.trade.offers = BM.findTradeOffers(g, [], [p.id]);
+  UI.render();
+};
+UI.actions.shopPlayer = function (el) {
+  var g = UI.g, p = g.players[+el.dataset.id];
+  if (!p) return;
+  UI.closeModal();
+  UI.tab = 'market'; UI.sub.market = 'trade';
+  var partner = g.teams.find(function (t) { return t.id !== g.userTeam; }).id;
+  UI.trade = { partner: partner, give: {}, get: {}, offers: null };
+  UI.trade.give[p.id] = 1;
+  if (BM.findTradeOffers) UI.trade.offers = BM.findTradeOffers(g, [p.id], []);
   UI.render();
 };
 UI.actions.proposeTrade = function () {
   var g = UI.g, T = UI.trade;
   var r = BM.executeTrade(g, T.partner, Object.keys(T.give).map(Number), Object.keys(T.get).map(Number));
   UI.toast(r.msg);
-  if (r.ok) { BM.Juice.sound('coin'); UI.trade = { partner: T.partner, give: {}, get: {} }; UI.save(); }
+  if (r.ok) { BM.Juice.sound('coin'); UI.trade = { partner: T.partner, give: {}, get: {}, offers: null }; UI.save(); }
   UI.render();
 };

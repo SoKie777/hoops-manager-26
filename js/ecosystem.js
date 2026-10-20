@@ -300,21 +300,74 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   BM.evalTrade = function (g, partnerId, giveIds, getIds) {
     var me = g.teams[g.userTeam], ai = g.teams[partnerId];
-    if (!BM.tradeOpen(g)) return { ok: false, msg: 'La date limite des échanges est passée (réouverture après les playoffs).' };
-    if (!giveIds.length || !getIds.length) return { ok: false, msg: 'Sélectionnez des joueurs des deux côtés.' };
+    if (!BM.tradeOpen(g)) return { ok: false, mood: 'refuse', msg: 'La date limite des échanges est passée (réouverture après les playoffs).' };
+    if (!giveIds.length || !getIds.length) return { ok: false, mood: 'refuse', msg: 'Sélectionnez des joueurs des deux côtés.' };
     var give = giveIds.map(function (id) { return g.players[id]; }), get = getIds.map(function (id) { return g.players[id]; });
     var sal = function (l) { return l.reduce(function (s, p) { return s + p.contract.salary; }, 0); };
     var out = sal(give), inn = sal(get);
     // Règle salariale simplifiée de la NBA : au-dessus du plafond, on ne reçoit pas plus de 125 % + 250 k$ de ce qu'on envoie.
-    if (BM.payroll(g, me) - out + inn > me.wageBudget && inn > out * 1.25 + 250) return { ok: false, msg: 'Salaires incompatibles : vous recevez ' + BM.money(inn) + ' pour ' + BM.money(out) + ' envoyés (max 125 % + 250 k$ au-dessus du plafond).' };
-    if (BM.payroll(g, ai) - inn + out > ai.wageBudget && out > inn * 1.25 + 250) return { ok: false, msg: ai.name + ' ne peut pas absorber ce salaire.' };
-    if (me.roster.length - give.length + get.length > BM.ROSTER_MAX) return { ok: false, msg: 'Votre effectif dépasserait ' + BM.ROSTER_MAX + ' joueurs.' };
-    if (ai.roster.length - get.length + give.length > 15 || ai.roster.length - get.length + give.length < BM.ROSTER_MIN - 1) return { ok: false, msg: ai.name + ' refuse : effectif déséquilibré.' };
+    if (BM.payroll(g, me) - out + inn > me.wageBudget && inn > out * 1.25 + 250) return { ok: false, mood: 'refuse', msg: 'Salaires incompatibles : vous recevez ' + BM.money(inn) + ' pour ' + BM.money(out) + ' envoyés (max 125 % + 250 k$ au-dessus du plafond).' };
+    if (BM.payroll(g, ai) - inn + out > ai.wageBudget && out > inn * 1.25 + 250) return { ok: false, mood: 'refuse', msg: ai.name + ' ne peut pas absorber ce salaire.' };
+    if (me.roster.length - give.length + get.length > BM.ROSTER_MAX) return { ok: false, mood: 'refuse', msg: 'Votre effectif dépasserait ' + BM.ROSTER_MAX + ' joueurs.' };
+    if (ai.roster.length - get.length + give.length > 15 || ai.roster.length - get.length + give.length < BM.ROSTER_MIN - 1) return { ok: false, mood: 'refuse', msg: ai.name + ' refuse : effectif déséquilibré.' };
     var vIn = give.reduce(function (s, p) { return s + BM.tradeValue(g, ai, p); }, 0);
     var vOut = get.reduce(function (s, p) { return s + BM.tradeValue(g, ai, p) * (BM.rankInTeam(g, p) < 2 ? 1.4 : 1); }, 0);
     var margin = vIn - vOut * 1.08;
     var mood = margin >= 0 ? 'accepte' : margin > -vOut * 0.15 ? 'hésite' : 'refuse';
     return { ok: margin >= 0, mood: mood, msg: ai.name + (margin >= 0 ? ' accepte l\'échange.' : margin > -vOut * 0.15 ? ' hésite : ajoutez un peu de valeur.' : ' refuse : l\'offre est trop faible.') };
+  };
+
+  // Recherche automatique d'offres d'échange réalistes à travers la ligue.
+  BM.findTradeOffers = function (g, giveIds, getIds) {
+    if (!BM.tradeOpen(g)) return [];
+    var me = g.teams[g.userTeam], myRoster = BM.roster(g, me);
+    var offers = [];
+    // Cas 1 : l'utilisateur a sélectionné un ou plusieurs joueurs à céder -> les 29 clubs proposent une contrepartie.
+    if (giveIds && giveIds.length) {
+      g.teams.forEach(function (ai) {
+        if (ai.id === me.id) return;
+        var their = BM.roster(g, ai).filter(function (p) { return !p.injury; });
+        for (var i = 0; i < their.length; i++) {
+          var cand = [their[i].id];
+          var ev = BM.evalTrade(g, ai.id, giveIds, cand);
+          if (ev.ok) {
+            offers.push({ partnerId: ai.id, give: giveIds.slice(), get: cand, score: BM.ovr(their[i]) * 10 - their[i].age * 0.4 });
+          }
+        }
+      });
+    } else if (getIds && getIds.length) {
+      // Cas 2 : l'utilisateur vise un joueur adverse -> trouver quel(s) joueur(s) de notre effectif le club adverse accepterait.
+      var target = g.players[getIds[0]];
+      if (target && target.teamId !== null && target.teamId !== me.id) {
+        var aiId = target.teamId;
+        for (var a = 0; a < myRoster.length; a++) {
+          var g1 = [myRoster[a].id];
+          if (BM.evalTrade(g, aiId, g1, getIds).ok) {
+            offers.push({ partnerId: aiId, give: g1, get: getIds.slice(), score: 100 - BM.ovr(myRoster[a]) });
+          }
+          for (var b = a + 1; b < myRoster.length; b++) {
+            var g2 = [myRoster[a].id, myRoster[b].id];
+            if (BM.evalTrade(g, aiId, g2, getIds).ok) {
+              offers.push({ partnerId: aiId, give: g2, get: getIds.slice(), score: 95 - (BM.ovr(myRoster[a]) + BM.ovr(myRoster[b])) * 0.65 });
+            }
+          }
+        }
+      }
+    } else {
+      // Cas 3 : aucune sélection -> suggérer des pistes autour des joueurs mécontents ou remplaçables.
+      var shoppable = myRoster.slice().sort(function (a, b) { return a.morale - b.morale || b.contract.salary - a.contract.salary; }).slice(0, 4);
+      shoppable.forEach(function (mp) {
+        g.teams.forEach(function (ai) {
+          if (ai.id === me.id) return;
+          BM.roster(g, ai).forEach(function (tp) {
+            if (BM.evalTrade(g, ai.id, [mp.id], [tp.id]).ok && BM.ovr(tp) >= BM.ovr(mp) - 1) {
+              offers.push({ partnerId: ai.id, give: [mp.id], get: [tp.id], score: BM.ovr(tp) * 10 - tp.age * 0.3 });
+            }
+          });
+        });
+      });
+    }
+    return offers.sort(function (a, b) { return b.score - a.score; }).slice(0, 6);
   };
 
   BM.executeTrade = function (g, partnerId, giveIds, getIds) {

@@ -198,7 +198,21 @@ BM.applyResult = function (g, fx, m) {
     });
   });
 
-  if (keepBox) { fx.box = box; fx.why = BM.explainMatch(m, fx.home === g.userTeam ? 0 : 1); }
+  if (keepBox) {
+    fx.box = box;
+    fx.why = BM.explainMatch(m, fx.home === g.userTeam ? 0 : 1);
+    if (m.quarterBreakdown) fx.qPts = m.quarterBreakdown();
+    fx.leadChanges = m.leadChanges || 0;
+    fx.ties = m.ties || 0;
+    fx.biggestLead = m.biggestLead || [0, 0];
+    if (m.flow) fx.flow = m.flow.filter(function (_, idx) { return idx % 2 === 0 || idx === m.flow.length - 1; });
+    if (m.shots) fx.shots = m.shots.slice();
+    // Élagage des cartes de tirs au-delà des 10 derniers matchs utilisateur pour garder une sauvegarde légère.
+    var userPlayed = g.fixtures.filter(function (f) { return f.played && f.shots && (f.home === g.userTeam || f.away === g.userTeam); });
+    if (userPlayed.length > 10) {
+      userPlayed.slice(0, userPlayed.length - 10).forEach(function (oldFx) { delete oldFx.shots; delete oldFx.flow; });
+    }
+  }
 
   if (fx.type === 'league') {
     home.record.pf += fx.hs; home.record.pa += fx.as;

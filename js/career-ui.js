@@ -249,12 +249,14 @@ var UI = BM.UI;
     if (won && BM.Juice) setTimeout(function () { BM.Juice.confetti([BM.cTeam(g).color, '#ffd43b', '#ffffff', '#3bc9db']); }, 250);
     UI.modal('<div class="result-banner"><h2 class="' + (won ? 'win' : 'loss') + '">' + (won ? 'Victoire' : 'Défaite') + '</h2></div>' +
       '<div class="card wide"><div class="sb"><div class="t">' + UI.teamBadge(m.side[0], true) + esc(m.side[0].short) + '</div><div class="score">' + m.score[0] + ' – ' + m.score[1] + '</div><div class="t away">' + esc(m.side[1].short) + UI.teamBadge(m.side[1], true) + '</div></div>' +
+      (UI.quarterTable && fx.qPts ? UI.quarterTable(fx.qPts, m.side[0], m.side[1], m.score[0], m.score[1]) : '') +
       '<div class="mvp-line">' + BM.portrait(p, BM.cTeam(g), 44) + '<div><b>Ta soirée</b>' + (line.gw ? ' <span class="tag legend">Panier de la gagne</span>' : '') + (line.decisions ? ' <span class="tag">' + line.decisions + ' décision(s)</span>' : '') + '</div></div>' + UI.cLine(line) + '</div>' +
       '<div class="card"><div class="cdeltas">' + dl('réputation', d.rep) + dl('confiance coach', d.confCoach) + dl('coéquipiers', d.confMates) + dl('moral', d.morale) + (pg.pp ? '<div><b class="good">+' + pg.pp + '</b><span>PP</span></div>' : '') + '</div>' +
       (pg.badges && pg.badges.length ? '<p class="small" style="margin:6px 0 0">Badge débloqué : <b>' + esc(pg.badges.join(', ')) + '</b></p>' : '') +
       (pg.status ? '<p class="small" style="margin:6px 0 0">Nouveau statut : <b>' + BM.CAREER_STATUS[pg.status.now].l + '</b></p>' : '') +
       (line.injured ? '<p class="small" style="margin:6px 0 0;color:var(--bad)">Blessé : ' + line.injured + ' jours d\'absence.</p>' : '') + '</div>' +
       UI.whyCard(fx.why) +
+      (UI.matchAnalyticsCard ? UI.matchAnalyticsCard(fx, m.side[0], m.side[1]) : '') +
       '<button class="btn primary block" data-act="cAfterMatch">' + (C.interview ? 'Zone mixte : interview' : 'Continuer') + '</button>');
   };
 
@@ -432,7 +434,9 @@ var UI = BM.UI;
           return '<tr><td>' + esc(x.opp) + '</td>' + (x.dnp ? '<td colspan="5" class="muted">N\'a pas joué</td>' : '<td class="num">' + x.min + '</td><td class="num"><b>' + x.pts + '</b></td><td class="num">' + x.reb + '</td><td class="num">' + x.ast + '</td><td class="num">' + x.fgm + '/' + x.fga + '</td>') +
             '<td class="num" style="color:' + (x.win ? 'var(--good)' : 'var(--bad)') + '">' + (x.win ? 'V ' : 'D ') + x.score + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '') + '</div>';
-    return attrs + badges + season + UI.gravityCard(p);
+    var t = BM.cTeam(g);
+    var radar = BM.radarSvg ? '<div class="card radar-card"><div class="card-h"><h2>Profil radar 6 axes</h2><span class="small muted">' + BM.POS_LABEL[p.pos] + '</span></div><div class="radar-wrap">' + BM.radarSvg(p, t ? t.color : '#3bc9db', 190) + '</div></div>' : '';
+    return attrs + radar + badges + season + UI.gravityCard(p);
   };
   UI.actions.cPP = function (el) {
     if (BM.careerSpendPP(UI.g, el.dataset.k)) { if (BM.Juice) { BM.Juice.sound('tap'); BM.Juice.haptic('light'); } UI.save(); UI.render(); }

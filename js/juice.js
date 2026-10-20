@@ -47,13 +47,34 @@ BM.Juice = (function () {
   }
 
   var SOUNDS = {
-    tap: function () { tone(880, 0.05, 'triangle', 0.08, 660); },
-    nav: function () { tone(520, 0.07, 'sine', 0.1, 780); },
-    open: function () { tone(330, 0.12, 'sine', 0.08, 660); },
-    swish: function () { noise(0.28, 0.25, 4500, 0.6, 0.02); },
+    tap: function () { tone(880, 0.045, 'triangle', 0.07, 660); },
+    nav: function () { tone(520, 0.07, 'sine', 0.09, 780); },
+    open: function () { tone(330, 0.11, 'sine', 0.08, 660); },
+    swish: function () {
+      tone(190, 0.06, 'sine', 0.08, 120);
+      noise(0.26, 0.24, 4600, 0.65, 0.018);
+    },
+    three: function () {
+      noise(0.28, 0.26, 5000, 0.7, 0.015);
+      tone(587, 0.14, 'triangle', 0.08, 880);
+    },
+    dunk: function () {
+      tone(110, 0.28, 'sawtooth', 0.22, 48);
+      noise(0.22, 0.3, 900, 0.5, 0.008);
+      noise(1.1, 0.2, 1400, 0.4, 0.18);
+    },
+    rim: function () {
+      tone(410, 0.09, 'square', 0.09, 290);
+      noise(0.08, 0.14, 2200, 1.8, 0.005);
+    },
+    block: function () {
+      noise(0.11, 0.25, 1800, 0.9, 0.004);
+      tone(150, 0.12, 'triangle', 0.15, 70);
+    },
     cheer: function () { noise(1.3, 0.22, 1400, 0.4, 0.25); noise(0.3, 0.2, 4500, 0.6, 0.02); },
-    whistle: function () { tone(2900, 0.35, 'sine', 0.12, 2700); },
-    buzzer: function () { tone(220, 0.7, 'sawtooth', 0.12); },
+    whistle: function () { tone(2950, 0.16, 'sine', 0.11, 2800); setTimeout(function () { tone(2850, 0.22, 'sine', 0.12, 2650); }, 140); },
+    buzzer: function () { tone(146, 0.75, 'sawtooth', 0.14); tone(220, 0.75, 'square', 0.08); },
+    draft: function () { [523, 659, 784, 1046, 1318].forEach(function (f, i) { setTimeout(function () { tone(f, 0.22, 'triangle', 0.12); }, i * 95); }); },
     win: function () { [523, 659, 784, 1046].forEach(function (f, i) { setTimeout(function () { tone(f, 0.25, 'triangle', 0.15); }, i * 110); }); },
     lose: function () { [392, 330, 262].forEach(function (f, i) { setTimeout(function () { tone(f, 0.3, 'sine', 0.12); }, i * 160); }); },
     coin: function () { tone(988, 0.08, 'square', 0.06); setTimeout(function () { tone(1319, 0.2, 'square', 0.06); }, 80); }
