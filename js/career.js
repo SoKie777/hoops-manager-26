@@ -52,9 +52,36 @@ var BM = globalThis.BM = globalThis.BM || {};
     for (var k = 1; k <= 3; k++) sched.push(last + 6 + k * 3);
     C.prospect = { sched: sched, games: [], w: 0, l: 0, cup: 0, workouts: 0, combine: null, stock: 0 };
     BM.careerNewDemand(g);
-    BM.clog(g, 'Signe à ' + p.college + ' (' + path.l + '). Objectif : la draft.');
+    BM.careerRecruiting(g);
     BM.careerDayStart(g);
     return g;
+  };
+
+  // Prologue : showcase des meilleurs prospects (classement), puis trois offres de programmes.
+  BM.careerRecruiting = function (g) {
+    var C = g.career, p = BM.cPlayer(g), path = BM.CAREER_PATHS[C.path], r = g.rng;
+    var rank = Math.max(3, Math.min(60, BM.careerMockRank(g) + r.int(-4, 4)));
+    var names = r.shuffle(path.teams.slice()).slice(0, 3);
+    var stars = [5, 4, 3].map(function (s) { return rank <= 10 ? s : rank <= 25 ? Math.max(2, s - 1) : Math.max(2, s - 2); });
+    C.recruit = { rank: rank, chosen: null, offers: names.map(function (n, i) {
+      var st = stars[i], role = st >= 5 ? 'Rotation' : st >= 4 ? 'Titulaire' : 'Leader';
+      return { name: n, stars: st, role: role, d: st >= 5 ? 'Programme phare : vitrine maximale, mais il faudra gagner ta place.' : st >= 4 ? 'Programme solide : titulaire, visibilité correcte.' : 'Programme en reconstruction : le ballon sera à toi, moins de projecteurs.' };
+    }) };
+    BM.cfeed(g, 'Hoops Daily', '@hoopsdaily', 'Showcase des prospects : ' + BM.fullName(p) + ', classé #' + rank + ', a régalé les recruteurs. Les offres vont tomber.', false, 4000);
+    BM.cpress(g, 'Hoops Daily', BM.fullName(p) + ', #' + rank + ' des prospects', 'Les recruteurs se pressent après le showcase. ' + names.join(', ') + ' sont sur les rangs.', '+');
+  };
+  BM.careerChooseProgram = function (g, i) {
+    var C = g.career, p = BM.cPlayer(g), o = C.recruit && C.recruit.offers[i];
+    if (!o) return '';
+    C.recruit.chosen = i;
+    C.prog = { stars: o.stars, role: o.role };
+    p.college = o.name;
+    if (o.role === 'Leader') C.confCoach += 8;
+    if (o.stars >= 5) C.rep += 3;
+    BM.careerNormalize(g);
+    BM.clog(g, 'S\'engage avec ' + o.name + ' (' + BM.CAREER_PATHS[C.path].l + '). Objectif : la draft.');
+    BM.cfeed(g, BM.fullName(p), '@' + (p.first + p.last).toLowerCase().replace(/[^a-z]/g, ''), 'Engagé. Merci à tous ceux qui ont cru en moi. ' + o.name + ', on y va.', true, 6000);
+    return 'Tu t\'engages avec ' + o.name + '.';
   };
 
   BM.clog = function (g, t) {
@@ -494,7 +521,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     var avg = played.length ? played.reduce(function (s, x) { return s + x.gs; }, 0) / played.length : 0;
     var exp = 9 + (BM.ovrRaw(p) - path.level) * 1.5;
     var perf = played.length >= 3 ? clamp((avg - exp) * 0.09 * path.vis, -0.8, 1.2) : 0;
-    var boost = perf + (C.prospect.champion ? 0.5 : 0) + C.prospect.cup * 0.1 + (C.prospect.combine || 0) + C.prospect.workouts * 0.08 + C.rep * 0.006 + (C.path === 'europe' ? 0.25 : 0);
+    var boost = perf + (C.prospect.champion ? 0.5 : 0) + C.prospect.cup * 0.1 + (C.prospect.combine || 0) + C.prospect.workouts * 0.08 + C.rep * 0.006 + (C.path === 'europe' ? 0.25 : 0) + (C.prog ? (C.prog.stars - 3) * 0.12 : 0);
     p.draftBoost = boost;
     C.prospect.stock = boost;
     C.prospect.avg = avg;
@@ -585,7 +612,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     var opp = g.teams[side === 0 ? fx.away : fx.home];
     var L = { day: g.day, opp: opp.short, oppName: opp.name, win: won, score: m.score[side] + '-' + m.score[1 - side], po: fx.type === 'playoff', dnp: !b || b.sec < 30 };
     if (C.suspended) { C.suspended = 0; L.dnp = true; L.susp = true; }
-    var pp = 0, badges = [];
+    var pp = 0, badges = [], cats = [], ach = [], rank0 = BM.legacyRank ? BM.legacyRank(g).i : 0;
     if (!L.dnp) {
       Object.assign(L, { min: Math.round(b.sec / 60), pts: b.pts, reb: b.oreb + b.dreb, ast: b.ast, stl: b.stl, blk: b.blk, tov: b.tov, pf: b.pf, fgm: b.fgm, fga: b.fga, tpm: b.tpm, tpa: b.tpa, ftm: b.ftm, fta: b.fta, pm: b.pm });
       L.gs = BM.gameScore(L);
@@ -616,6 +643,13 @@ var BM = globalThis.BM = globalThis.BM || {};
       // Sponsors : primes de match.
       C.sponsors.forEach(function (s) { if (s.bonus.k === 'win' && won) C.money += s.bonus.v; if (s.bonus.k === 'pts' && L.pts >= s.bonus.n) C.money += s.bonus.v; });
       badges = BM.careerCheckBadges(g);
+      if (BM.careerCatCheck) cats = BM.careerCatCheck(g);
+      if (BM.checkAch) ach = BM.checkAch(BM.ACH_PLAYER, C, BM.careerAchCtx(g, L));
+      // Relations individuelles : le vestiaire suit la victoire, n'aime pas les tirs forcés et apprécie le partage.
+      if (BM.cMateAdd) BM.roster(g, BM.cTeam(g)).forEach(function (x) {
+        if (x === p) return;
+        BM.cMateAdd(g, x.id, (won ? 0.6 : -0.2) + (L.ast >= 6 ? 0.6 : 0) - (L.fga >= 16 && L.fgm / L.fga < 0.38 ? 1 : 0));
+      });
       C.interview = BM.careerBuildInterview(g, L);
     } else if (C.status === 'banc' && p.injury <= 0) p.morale -= 1;
     C.pp += pp;
@@ -625,7 +659,13 @@ var BM = globalThis.BM = globalThis.BM || {};
     var st = BM.careerComputeStatus(g);
     BM.careerNormalize(g);
     C.games = (C.games || []).concat([L]).slice(-90);
-    C.postGame = { line: L, pp: pp, badges: badges, status: st, deltas: { rep: C.rep - before.rep, confCoach: C.confCoach - before.confCoach, confMates: C.confMates - before.confMates, morale: p.morale - before.morale } };
+    var rank1 = BM.legacyRank ? BM.legacyRank(g) : null, rankChange = null;
+    if (rank1 && rank1.i !== rank0) {
+      rankChange = { up: rank1.i > rank0, l: rank1.l };
+      BM.clog(g, rankChange.up ? 'Ton rang Legacy monte : ' + rank1.l + '.' : 'Ton rang Legacy redescend : ' + rank1.l + '.');
+    }
+    if (BM.socialAfterMatch) BM.socialAfterMatch(g, fx, m, p.id);
+    C.postGame = { line: L, pp: pp, badges: badges, cats: cats, ach: ach, rank: rankChange, status: st, deltas: { rep: C.rep - before.rep, confCoach: C.confCoach - before.confCoach, confMates: C.confMates - before.confMates, morale: p.morale - before.morale } };
   };
 
   BM.careerCheckBadges = function (g) {
@@ -834,6 +874,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     C.tradeReq = false; C.confCoach = 52; C.confMates = 46;
     BM.careerNewDemand(g); BM.careerComputeStatus(g);
     BM.clog(g, 'Échangé : de ' + oldName + ' aux ' + dest.name + '.');
+    if (BM.news) BM.news(g, 'trade', 'BREAKING : ' + BM.fullName(p) + ' est transféré des ' + oldName + ' aux ' + dest.name + '.', true);
     BM.cpress(g, 'Hoops Daily', 'Échange : ' + BM.fullName(p) + ' rejoint les ' + dest.name, 'Coup de théâtre à la date limite des échanges.', '=');
     C.cine.push({ k: 'Date limite des échanges', l: ['Ton téléphone vibre à 14 h 58.', 'C\'est ton agent.', '« Tu fais tes valises. Direction ' + dest.city + '. »'] });
   };
@@ -883,6 +924,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       p.contract.years--;
       if (p.contract.years <= 0) out.fa = true;
     }
+    out.ach = BM.checkAch ? BM.checkAch(BM.ACH_PLAYER, C, BM.careerAchCtx(g, null)) : [];
     out.canRetire = p.age >= 33;
     out.mustRetire = p.age >= 40 || (p.age >= 36 && BM.ovr(p) < 60);
     C.offseason = out;
@@ -962,7 +1004,12 @@ var BM = globalThis.BM = globalThis.BM || {};
     C.lastTeam = t ? t.id : null;
     if (t) BM.removeFromTeam(g, p);
     p.retired = true;
+    p.retireSeason = g.season;
     C.phase = 'retired';
+    if (BM.news) {
+      BM.news(g, 'retire', BM.fullName(p) + ' annonce sa retraite après ' + C.seasons.length + ' saison(s) en NBA.', true);
+      if (BM.hofScore(g, p) >= BM.HOF_MIN || C.legacy.sc >= 60) BM.induct(g, p);
+    }
     BM.clog(g, 'Annonce sa retraite. Héritage : ' + C.legacy.tier + '.');
     g.legends = (g.legends || []).concat([{ name: BM.fullName(p), season: g.season, tier: C.legacy.tier, score: C.legacy.sc, rings: C.rings }]);
     return C.legacy;
@@ -985,6 +1032,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     g.staff = null; g.know = null; g.staffPool = null;
     BM.initScouting(g);
     C.phase = 'coach';
+    g.coach = { wins: 0, games: 0, streak: 0, seasonWins: 0, apps: 0, series: 0, titles: 0 };
     var team = g.teams[teamId];
     BM.autoTactics(g, team);
     BM.startNewSeason(g);

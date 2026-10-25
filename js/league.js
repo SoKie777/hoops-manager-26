@@ -229,6 +229,7 @@ BM.applyResult = function (g, fx, m) {
   // Recettes de billetterie.
   home.balance += Math.round(home.rep * 20 + 500);
 
+  if (BM.legacyAfterMatch) BM.legacyAfterMatch(g, fx, m);
   if (fx.home === g.userTeam || fx.away === g.userTeam) {
     if (BM.isCareer(g)) { if (BM.careerAfterTeamMatch) BM.careerAfterTeamMatch(g, fx, m); }
     else BM.afterUserMatch(g, fx, m);
@@ -270,6 +271,19 @@ BM.afterUserMatch = function (g, fx, m) {
   }
   BM.playingTimeMood(g, me, fx);
   BM.pressConference(g, fx, 'post');
+  // Héritage du coach, fans et fil social (voir js/legacy.js).
+  if (BM.checkAch) {
+    var k = BM.coachInit(g);
+    k.games++;
+    if (won) { k.wins++; k.streak++; } else k.streak = 0;
+    k.seasonWins = me.record.w;
+    var ups = BM.checkAch(BM.ACH_COACH, k, k);
+    fx.ach = ups.length ? ups : undefined;
+    if (ups.length) BM.addMessage(g, 'Accomplissement : ' + ups[0].l, ups.map(function (u) { return '• ' + u.l + ' (+' + u.pts + ' points d’héritage)'; }).join('\n'), 'board');
+    me.fans = Math.round(BM.fansOf(me) * (won ? 1.004 : 0.998) + (won && fx.type === 'playoff' ? 1500 : 0));
+    var star = m.roster[userSide].slice().sort(function (a, b) { return m.box[b.id].pts - m.box[a.id].pts; })[0];
+    BM.socialAfterMatch(g, fx, m, star ? star.id : null);
+  }
 };
 
 // ==================================================================== avancer d'un jour
@@ -510,6 +524,14 @@ BM.endSeason = function (g) {
     if (team.id === g.userTeam) departures.push(BM.fullName(p) + ' (fin de contrat)');
   });
   summary.departures = departures;
+  // Héritage du coach (playoffs, séries, titres) et mémoire de la ligue (retraites, Hall of Fame, légendes).
+  if (!career && BM.checkAch) {
+    var k = g.coach = g.coach || { wins: 0, games: 0, streak: 0, seasonWins: 0, apps: 0, series: 0, titles: 0 };
+    if (reached >= 1) k.apps++;
+    k.series += po.series.filter(function (s) { return s.winner === g.userTeam; }).length;
+    if (champion) k.titles++;
+    summary.ach = BM.checkAch(BM.ACH_COACH, k, k);
+  }
 
   // Retraite des agents libres âgés.
   g.freeAgents = g.freeAgents.filter(function (id) { var p = g.players[id]; if (p.age >= 35) { p.retired = true; return false; } return true; });
@@ -529,6 +551,7 @@ BM.endSeason = function (g) {
     }
   });
   summary.prospects = prospects;
+  if (BM.legacyEndSeason) BM.legacyEndSeason(g);
 
   // Nouveaux agents libres pour garder un marché vivant.
   for (var f = 0; f < 10; f++) {
@@ -642,8 +665,8 @@ BM.aiTransfers = function (g) {
 
 // Probabilité qu'un joueur accepte de rejoindre l'équipe de l'utilisateur.
 BM.interest = function (g, p, team) {
-  var o = BM.ovrRaw(p);
-  return BM.clamp(0.55 + (team.rep - 50) / 90 - (o - 12) * 0.04 + (p.teamId === null ? 0.1 : 0), 0.05, 0.98);
+  var o = BM.ovrRaw(p), fit = BM.wantFit && team.id === g.userTeam ? BM.wantFit(g, p, team).v : 0;
+  return BM.clamp(0.55 + (team.rep - 50) / 90 - (o - 12) * 0.04 + (p.teamId === null ? 0.1 : 0) + fit, 0.05, 0.98);
 };
 
 BM.offerContract = function (g, pid, salary, years, fee) {
@@ -660,10 +683,11 @@ BM.offerContract = function (g, pid, salary, years, fee) {
     if (fee < value * keyPlayer * (p.listed ? 0.8 : 1)) return { ok: false, msg: seller.name + ' refuse l\'offre. Ils attendent environ ' + BM.money(Math.round(value * keyPlayer * (p.listed ? 0.8 : 1) / 50) * 50) + '.' };
   }
   var asking = BM.askingSalary(p), interest = BM.interest(g, p, me);
-  var needed = asking * (1.15 - interest * 0.3) * (years >= 3 && p.age >= 30 ? 0.92 : 1);
+  var want = BM.wantFit ? BM.wantFit(g, p, me) : null;
+  var needed = asking * (1.15 - interest * 0.3) * (years >= 3 && p.age >= 30 ? 0.92 : 1) * (want && want.w === 'argent' ? 1.1 : 1);
   if (salary < needed) {
     // Le refus reste déterministe pour éviter de "relancer les dés" avec la même offre.
-    return { ok: false, msg: BM.fullName(p) + ' refuse. Son agent réclame au moins ' + BM.money(Math.ceil(needed / 50) * 50) + ' par saison.' };
+    return { ok: false, msg: BM.fullName(p) + ' refuse. Son agent réclame au moins ' + BM.money(Math.ceil(needed / 50) * 50) + ' par saison' + (want ? ' (' + want.l.toLowerCase() + ')' : '') + '.' };
   }
   var sellerId = p.teamId;
   if (sellerId !== null) {
@@ -694,7 +718,7 @@ BM.releasePlayer = function (g, pid) {
 BM.extendContract = function (g, pid, salary, years) {
   var p = g.players[pid], me = g.teams[g.userTeam];
   var asking = BM.askingSalary(p);
-  var needed = asking * (1.05 - (p.morale - 50) / 250);
+  var needed = asking * (1.05 - (p.morale - 50) / 250) * (1 - ((p.rel === undefined ? 50 : p.rel) - 50) / 400);
   if (salary > p.contract.salary && BM.payroll(g, me) - p.contract.salary + salary > me.wageBudget) return { ok: false, msg: 'Dépassement de la masse salariale autorisée.' };
   if (salary < needed) return { ok: false, msg: BM.fullName(p) + ' refuse et réclame au moins ' + BM.money(Math.ceil(needed / 50) * 50) + ' par saison.' };
   p.contract = { salary: salary, years: years };

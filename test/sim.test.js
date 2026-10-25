@@ -2,7 +2,7 @@
 // Lancement : node test/sim.test.js
 var path = require('path');
 var assert = require('assert');
-['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'analysis', 'league'].forEach(function (f) {
+['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'analysis', 'league', 'legacy'].forEach(function (f) {
   require(path.join(__dirname, '..', 'js', f + '.js'));
 });
 var BM = globalThis.BM;
@@ -99,6 +99,8 @@ console.log('Écosystème OK : échange', ev.mood, '| ambiance', dyn.label);
 // Sauvegarde / chargement.
 var json = BM.serialize(g);
 console.log('Taille de la sauvegarde :', (json.length / 1024).toFixed(0) + ' Ko');
+console.log('Hall of Fame : ' + (g.hof || []).map(function (h) { return h.name + ' (' + h.score + ')'; }).join(', '));
+console.log('Héritage : actualités ' + (g.news || []).length + ' | Hall of Fame ' + (g.hof || []).length + ' | fil ' + (g.feed || []).length + ' | accomplissements coach ' + Object.keys((g.coach || {}).ach || {}).length + ' | points ' + ((g.coach || {}).legacyPts || 0));
 assert(json.length < 3.5 * 1024 * 1024, 'sauvegarde trop lourde pour le stockage local');
 var g2 = BM.deserialize(json);
 assert.strictEqual(g2.rng.next(), g.rng.next(), 'état RNG restauré');

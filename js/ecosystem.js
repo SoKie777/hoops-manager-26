@@ -58,6 +58,9 @@ var BM = globalThis.BM = globalThis.BM || {};
     var pr = (g.promises || []).find(function (x) { return x.pid === p.id; });
     if (pr) out.push({ l: 'Promesse en cours : ' + pr.target + ' min sur ' + pr.games + ' matchs', v: 0 });
     if (p.trust === 'broken') out.push({ l: 'N\'a plus confiance (promesse rompue)', v: -2 });
+    var rel = p.rel === undefined ? 50 : p.rel;
+    if (rel >= 72) out.push({ l: 'Excellente relation avec le coach', v: 1 });
+    else if (rel <= 30) out.push({ l: 'Relation tendue avec le coach', v: -2 });
     return out.filter(Boolean);
   };
 
@@ -146,6 +149,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       if (p.persona === 'sanguin' || p.persona === 'ambitieux') { p.listed = true; txt += ' Il demande à être transféré.'; }
     }
     p.morale = BM.clamp(p.morale + d, 0, 100);
+    if (BM.relAdd) BM.relAdd(g, p, Math.round(d * 0.6));
     // Les leaders et l'ambiance réagissent aux conflits.
     if (d <= -6 && BM.dynamics(g, me).leaders.indexOf(p) >= 0) BM.roster(g, me).forEach(function (x) { if (x !== p) x.morale = BM.clamp(x.morale - 2, 0, 100); });
     return BM.fullName(p) + ' ' + txt;
@@ -377,6 +381,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     giveIds.forEach(function (id) { var p = g.players[id]; BM.addToTeam(g, p, ai); g.know[id] = Math.max(g.know[id] || 0, 100); });
     getIds.forEach(function (id) { var p = g.players[id]; BM.addToTeam(g, p, me); g.know[id] = 100; p.status = null; });
     BM.assignStatuses(g, me); BM.assignStatuses(g, ai);
+    if (BM.news) BM.news(g, 'trade', 'BREAKING : échange entre les ' + me.name + ' et les ' + ai.name + ' (' + getIds.map(function (id) { return BM.fullName(g.players[id]); }).join(', ') + ').', true);
     BM.addMessage(g, 'Échange conclu avec ' + ai.name, 'Partent : ' + giveIds.map(function (id) { return BM.fullName(g.players[id]); }).join(', ') +
       '.\nArrivent : ' + getIds.map(function (id) { return BM.fullName(g.players[id]); }).join(', ') + '.', 'transfer');
     return { ok: true, msg: 'Échange conclu !' };

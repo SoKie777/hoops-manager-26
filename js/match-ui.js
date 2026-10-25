@@ -618,6 +618,8 @@ UI.finishMatch = function () {
     UI.quarterTable(fx.qPts, m.side[0], m.side[1], m.score[0], m.score[1]) +
     (mvp ? '<div class="mvp-line">' + BM.portrait(mvp, g.teams[mvp.teamId], 44) + '<p class="small" style="margin:0">Homme du match · <b>note ' + UI.dec(m.ratings[mvp.id]) + '</b><br><b>' + UI.esc(BM.fullName(mvp)) + '</b>' +
       (mvpBox ? ' · <span class="muted">' + mvpBox.pts + ' pts, ' + (mvpBox.oreb + mvpBox.dreb) + ' reb, ' + mvpBox.ast + ' pd</span>' : '') + '</p></div>' : '') + '</div>' +
+    (fx.ach ? '<div class="card wide"><h3>Accomplissement débloqué</h3>' + fx.ach.map(function (a) { return '<div class="attr"><span>' + UI.esc(a.l) + '</span><b class="a-hi">+' + a.pts + '</b></div>'; }).join('') + '</div>' : '') +
+    UI.replyCard(g, fx) +
     UI.whyCard(fx.why) +
     UI.matchAnalyticsCard(fx, m.side[0], m.side[1]) +
     UI.boxTable(g, fx.box, 0, m.side[0]) + UI.boxTable(g, fx.box, 1, m.side[1]));

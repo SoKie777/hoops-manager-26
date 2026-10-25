@@ -2,7 +2,7 @@
 // Lancement : node test/career.test.js
 var path = require('path');
 var assert = require('assert');
-['rng', 'data', 'nba-data', 'model', 'portrait', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'analysis', 'career-data', 'career-match', 'career', 'career-events', 'league'].forEach(function (f) {
+['rng', 'data', 'nba-data', 'model', 'portrait', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'analysis', 'career-data', 'career-match', 'career', 'career-events', 'league', 'legacy'].forEach(function (f) {
   require(path.join(__dirname, '..', 'js', f + '.js'));
 });
 var BM = globalThis.BM;
@@ -12,7 +12,11 @@ var C = g.career, p = BM.cPlayer(g);
 assert.strictEqual(g.mode, 'career');
 assert.strictEqual(C.phase, 'prospect');
 assert(BM.ovr(p) >= 55 && BM.ovr(p) <= 66, 'note de départ : ' + BM.ovr(p));
-console.log('Prospect :', BM.fullName(p), p.pos, 'note', BM.ovr(p), 'pot.', BM.potDisplay(p), '·', p.college);
+// Prologue : showcase classé et choix du programme.
+assert(C.recruit && C.recruit.offers.length === 3 && C.recruit.rank >= 1, 'offres du showcase');
+BM.careerChooseProgram(g, 1);
+assert(C.prog && p.college === C.recruit.offers[1].name, 'programme choisi');
+console.log('Prospect :', BM.fullName(p), p.pos, 'note', BM.ovr(p), 'pot.', BM.potDisplay(p), '·', p.college, '· showcase #' + C.recruit.rank);
 
 var acts = ['repos', 'shootnight', 'video', 'famille', 'mates', 'media', 'culte', 'perso', 'date', 'charite', 'soiree', 'coachtalk'];
 var stats = { days: 0, events: 0, prospectGames: 0, nbaGames: 0, moments: 0, seasons: 0, interviews: 0 };
@@ -44,6 +48,13 @@ for (var day = 0; day < 6000 && !retired; day++) {
     var live = g.rng.chance(0.5);
     if (live) liveMatch(r.fx); else BM.playMatch(g, r.fx);
     stats.nbaGames++;
+    if (stats.nbaGames === 1) {
+      // Fil social : publication d'après-match avec une cible et un ton.
+      assert(g.reply, 'publication proposée après le match');
+      assert(BM.socialTargets(g).some(function (t) { return t[0] === 'coach'; }), 'le coach fait partie des cibles');
+      var coach0 = C.confCoach, res = BM.socialReply(g, 'coach', 'praise');
+      assert(/Publié/.test(res) && C.confCoach >= coach0, 'publication appliquée : ' + res);
+    }
     while (C.interview) { BM.careerAnswer(g, 0); stats.interviews++; }
     continue;
   }
@@ -99,6 +110,12 @@ for (var d = 0; d < 400; d++) {
 }
 assert(mgr >= 10, 'matchs en tant que coach : ' + mgr);
 console.log('Coach : ' + mgr + ' matchs dirigés.');
+// Héritage : accomplissements, rang, catégories, mémoire de la ligue.
+assert(C.legacyPts > 0 && Object.keys(C.ach || {}).length > 0, 'accomplissements débloqués');
+assert(C.catLv && Object.keys(C.catLv).length === 4, 'niveaux par catégorie');
+var lr = BM.legacyRank(g);
+assert(lr.l && lr.score >= 0, 'rang Legacy');
+console.log('Héritage : ' + C.legacyPts + ' points, rang ' + lr.l + ' | catégories ' + JSON.stringify(C.catLv) + ' | actualités ' + (g.news || []).length + ' | Hall of Fame ' + (g.hof || []).length);
 
 // Sauvegarde / chargement.
 var json = BM.serialize(g);

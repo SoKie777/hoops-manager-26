@@ -720,3 +720,18 @@ th .ico { margin-left: 2px; vertical-align: -3px; }
 .card .grid2 > :not(.kpi) { padding: 6px 12px; min-width: 0; }
 .card .grid2 > :not(.kpi) + :not(.kpi) { border-left: 1px solid var(--line); }
 .sb .clock .shot { font-style: normal; font-weight: 800; color: var(--gold); }
+/* ================================================================ médias et héritage */
+.news { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.news:last-child { border-bottom: 0; }
+.news > .small { grid-column: 2; }
+.news.big > span:nth-child(2) { font-weight: 700; }
+.ach { padding: 6px 0; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
+.ach:last-child { border-bottom: 0; }
+.ach-h { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.post p { overflow-wrap: anywhere; }
+.rank-track { display: flex; gap: 2px; margin: 8px 0 4px; }
+.rank-track i { flex: 1; height: 6px; border-radius: 1px; background: var(--panel-3); }
+.rank-track i.on { background: var(--gold); }
+.rank-track i.cur { background: var(--accent); }
+.bar.prog > i { background: var(--accent); }
+.ach .bar.prog > i[style="width:100%"] { background: var(--gold); }

@@ -142,7 +142,7 @@ UI.render = function () {
   UI.lastScreen = screenKey;
   var matchToday = !!BM.userFixtureToday(g);
   var unread = g.inbox.some(function (m) { return !m.read; });
-  var tabs = [['home', 'Accueil'], ['squad', 'Effectif'], ['tactics', 'Tactique'], ['comp', 'Ligue'], ['market', 'Mercato'], ['club', 'Club']];
+  var tabs = [['home', 'Accueil'], ['squad', 'Effectif'], ['tactics', 'Tactique'], ['comp', 'Ligue'], ['market', 'Mercato'], ['media', 'Médias'], ['club', 'Club']];
   var body = UI['tab_' + UI.tab]();
   var confPos = BM.standings(g, me.conf).indexOf(me) + 1;
   app.innerHTML =
@@ -284,7 +284,7 @@ UI.tab_home = function () {
     '<div class="kpi"><b data-count="' + morale + '">' + morale + '</b><span>Moral moyen</span>' + UI.bar(morale) + '</div>' +
     '<div class="kpi"><b data-count="' + injured + '">' + injured + '</b><span>Blessé(s) · cohésion ' + Math.round(me.cohesion) + '</span></div>' +
     '</div>' +
-    '<div class="stack">' + nextHtml + UI.upcomingCard(g) + tickerHtml + '</div>' +
+    '<div class="stack">' + nextHtml + UI.upcomingCard(g) + ((g.news || []).length ? '<div class="card"><div class="card-h"><h3>À la une</h3><button class="btn sm" data-act="subtabGo" data-tab="media" data-key="media" data-v="news">Tout voir</button></div>' + UI.newsHtml(g, 3) + '</div>' : '') + tickerHtml + '</div>' +
     '<div class="card inbox"><div class="card-h"><h2>Messagerie</h2><span class="small muted">Objectif : ' + BM.OBJECTIVES[g.objective] + '</span></div>' +
     (msgs.length ? msgs.map(function (m) {
       return '<div class="msg' + (m.read ? '' : ' unread') + '" data-act="openMsg" data-id="' + m.id + '"><div class="ic">' + UI.icon(icons[m.type] || 'info') + '</div><div style="min-width:0">' +
@@ -458,7 +458,8 @@ UI.showPlayer = function (id) {
     '<div class="radar-wrap">' + BM.radarSvg(p, team ? team.color : '#ff7a1a', 186) + '</div></div>' : '';
   UI.modal(
     '<div class="modal-h player-h">' + BM.portrait(p, team, 76) +
-    '<div><h2>' + (team ? UI.teamBadge(team, true) + ' ' : '') + UI.esc(BM.fullName(p)) + '</h2><span class="small muted">' + BM.POS_LABEL[p.pos] + ' · ' + p.age + ' ans · ' + p.height + ' cm · ' + (team ? UI.esc(team.name) : 'Agent libre') + '</span></div>' +
+    '<div><h2>' + (team ? UI.teamBadge(team, true) + ' ' : '') + UI.esc(BM.fullName(p)) + '</h2><span class="small muted">' + BM.POS_LABEL[p.pos] + ' · ' + p.age + ' ans · ' + p.height + ' cm · ' + (team ? UI.esc(team.name) : 'Agent libre') + '</span>' +
+    (BM.wantFit && !mine ? (function () { var w = BM.wantFit(g, p, g.teams[g.userTeam]); return '<div style="margin-top:4px"><span class="tag ' + w.cls + '" style="margin:0">' + UI.esc(w.l) + '</span>' + (w.cls === 'good' ? ' <span class="small muted">votre club lui correspond</span>' : w.cls === 'bad' ? ' <span class="small muted">votre club ne lui correspond pas</span>' : '') + '</div>'; })() : '') + '</div>' +
     '<button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
     '<div class="grid2">' +
     (mine ? '<div class="kpi"><b>' + UI.ovrBadge(BM.ovr(p)) + ' <span class="muted" style="font-size:14px">pot. ' + BM.potDisplay(p) + '</span></b><span>Note actuelle / potentiel estimé</span></div>'
@@ -926,11 +927,11 @@ UI.tab_market = function () {
       return '<button data-act="marketPos" data-v="' + p[0] + '" class="' + (UI.marketPos === p[0] ? 'on' : '') + '">' + p[1] + '</button>';
     }).join('') + '</div>' +
     '<div class="card"><div class="table-wrap"><table><thead><tr><th>Pos</th><th>Nom</th><th class="num">Âge</th><th class="num">Note</th><th class="num">Pot.</th><th>Connu</th>' +
-    (src === 'fa' ? '' : '<th class="hide-sm">Club</th><th class="num">Valeur</th>') + '<th class="num">Salaire</th></tr></thead><tbody>' +
+    (src === 'fa' ? '<th>Envie</th>' : '<th class="hide-sm">Club</th><th class="num">Valeur</th>') + '<th class="num">Salaire</th></tr></thead><tbody>' +
     list.map(function (p) {
       return '<tr class="click" data-act="player" data-id="' + p.id + '"><td><span class="pos">' + p.pos + '</span></td><td>' + UI.esc(BM.shortName(p)) + UI.statusTags(p) + '</td>' +
         '<td class="num">' + p.age + '</td><td class="num">' + UI.estBadge(p) + '</td><td class="num muted">' + UI.estPot(p) + '</td><td>' + UI.knowBar(p) + '</td>' +
-        (src === 'fa' ? '' : '<td class="hide-sm">' + g.teams[p.teamId].short + '</td><td class="num">' + BM.money(BM.playerValue(p)) + '</td>') +
+        (src === 'fa' ? (function () { var w = BM.wantFit(g, p, me); return '<td><span class="tag ' + w.cls + '" style="margin:0">' + UI.esc(w.l) + '</span></td>'; })() : '<td class="hide-sm">' + g.teams[p.teamId].short + '</td><td class="num">' + BM.money(BM.playerValue(p)) + '</td>') +
         '<td class="num">' + BM.money(src === 'fa' ? BM.askingSalary(p) : p.contract.salary) + '</td></tr>';
     }).join('') + '</tbody></table></div>' + (list.length ? '' : '<p class="muted">Aucun joueur.</p>') +
     '<p class="hint" style="margin:10px 0 0">Les notes en fourchette viennent de vos scouts : plus un joueur est observé, plus l\'estimation est précise.</p></div>';
@@ -1238,6 +1239,8 @@ UI.moodCard = function (p) {
   var g = UI.g, reasons = BM.happiness(g, p), per = BM.PERSONAS[p.persona || 'discret'];
   return '<div class="card"><div class="card-h"><h3>Moral et statut</h3><span class="tag">' + UI.esc(BM.STATUS[p.status || 'rotation'].l) + '</span></div>' +
     '<p class="small" style="margin:0 0 6px">Personnalité : <b>' + UI.esc(per.l) + '</b> <span class="muted">— ' + UI.esc(per.d) + '</span></p>' +
+    '<div class="attr"><span class="small">Relation avec vous</span><b class="' + (BM.relOf(p) >= 60 ? 'a-hi' : BM.relOf(p) < 35 ? 'a-lo' : 'a-mid') + '">' + BM.relLabel(BM.relOf(p)) + ' · ' + Math.round(BM.relOf(p)) + '</b></div>' +
+    (BM.wantOf ? '<div class="attr"><span class="small">Ambition</span><b style="font-size:12px">' + UI.esc(BM.WANTS[BM.wantOf(p)].l) + '</b></div>' : '') +
     reasons.map(function (r) { return '<div class="attr"><span class="small">' + UI.esc(r.l) + '</span><b class="' + (r.v > 0 ? 'a-hi' : r.v < 0 ? 'a-lo' : 'a-mid') + '">' + UI.icon(r.v > 0 ? 'up' : r.v < 0 ? 'down' : 'dot', 'ico sm') + '</b></div>'; }).join('') +
     '<button class="btn block" style="margin-top:8px" data-act="talkMenu" data-id="' + p.id + '">Discuter avec lui</button></div>';
 };
@@ -1390,4 +1393,84 @@ UI.actions.proposeTrade = function () {
   UI.toast(r.msg);
   if (r.ok) { BM.Juice.sound('coin'); UI.trade = { partner: T.partner, give: {}, get: {}, offers: null }; UI.save(); }
   UI.render();
+};
+
+// ==================================================================== médias, mémoire de la ligue et héritage (voir js/legacy.js)
+UI.feedHtml = function (list, n) {
+  if (!list || !list.length) return '<p class="small muted" style="margin:0">Fil vide pour l\'instant : il se remplit après chaque match.</p>';
+  return list.slice(0, n || 12).map(function (f) {
+    return '<div class="post' + (f.mine ? ' mine' : '') + '"><div class="av">' + UI.esc(f.who.charAt(0)) + '</div><div style="min-width:0"><b>' + UI.esc(f.who) + '</b> <span class="muted small">' + UI.esc(f.h) + '</span>' +
+      '<p style="margin:2px 0 0">' + UI.esc(f.t) + '</p><span class="small muted">' + (BM.fmtN ? BM.fmtN(f.likes) : f.likes) + ' j\'aime</span></div></div>';
+  }).join('');
+};
+UI.newsHtml = function (g, n) {
+  var list = (g.news || []).slice(0, n || 20);
+  if (!list.length) return '<p class="small muted" style="margin:0">Aucune actualité pour l\'instant.</p>';
+  return list.map(function (x) {
+    return '<div class="news' + (x.big ? ' big' : '') + '"><span class="tag' + (x.big ? ' warn' : '') + '" style="margin:0">' + UI.esc(BM.NEWS_KINDS[x.k] || 'Info') + '</span><span>' + UI.esc(x.t) + '</span><span class="small muted">' + UI.esc(BM.dateLabel(g, x.day)) + '</span></div>';
+  }).join('');
+};
+UI.hofHtml = function (g) {
+  var hof = (g.hof || []).slice().sort(function (a, b) { return b.season - a.season || b.score - a.score; });
+  var retired = [];
+  g.teams.forEach(function (t) { (t.retired || []).forEach(function (r) { retired.push({ t: t, r: r }); }); });
+  return '<div class="card wide"><div class="card-h"><h2>Hall of Fame</h2><span class="small muted">' + hof.length + ' membre(s)</span></div>' +
+    (hof.length ? '<div class="table-wrap"><table><thead><tr><th>Joueur</th><th>Pos</th><th>Club</th><th class="num">Pic</th><th class="num">Intronisé</th><th></th></tr></thead><tbody>' + hof.map(function (h) {
+      return '<tr><td><b>' + UI.esc(h.name) + '</b>' + (h.first ? '<span class="tag legend">1er vote</span>' : '') + '</td><td><span class="pos">' + h.pos + '</span></td><td>' + UI.esc(h.team) + '</td><td class="num">' + h.peak + '</td>' +
+        '<td class="num">' + (2025 + h.season) + '-' + String(26 + h.season).slice(-2) + '</td><td class="small muted">' + (h.died ? 'Décédé à ' + h.died.age + ' ans' : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '<p class="small muted" style="margin:0">Personne n\'a encore été intronisé. Les grandes carrières entrent au Hall of Fame à leur retraite.</p>') + '</div>' +
+    '<div class="card"><div class="card-h"><h2>Maillots retirés</h2><span class="small muted">' + retired.length + '</span></div>' + (retired.length ? retired.map(function (x) {
+      return '<div class="attr"><span>' + UI.teamBadge(x.t, true) + ' ' + UI.esc(x.r.name) + '</span><b>' + (x.r.num !== undefined ? 'n°' + x.r.num : '-') + '</b></div>';
+    }).join('') : '<p class="small muted" style="margin:0">Un club retire le maillot d\'un membre du Hall of Fame qui y a passé au moins 4 saisons.</p>') + '</div>';
+};
+UI.achHtml = function (rows) {
+  var scope = { match: 'Match', saison: 'Saison', 'carrière': 'Carrière' };
+  return rows.map(function (r) {
+    var pct = r.next ? Math.min(100, Math.round(r.v / r.next * 100)) : 100;
+    return '<div class="ach"><div class="ach-h"><span class="tag" style="margin:0">' + scope[r.s] + '</span><b>' + UI.esc(r.l) + '</b><span class="small muted">' + r.lvl + '/' + r.max + '</span></div>' +
+      '<div class="bar prog"><i style="width:' + pct + '%"></i></div>' + '</div>';
+  }).join('');
+};
+// Carte « Ta publication » d'après-match : une cible, puis un ton.
+UI.replyCard = function (g, fx) {
+  var R = g.reply;
+  if (!R || (fx && R.fx !== fx.id)) return '';
+  var targets = BM.socialTargets(g);
+  UI.replyT = UI.replyT && targets.some(function (t) { return t[0] === UI.replyT; }) ? UI.replyT : targets[0][0];
+  return '<div class="card wide" id="reply-card"><div class="card-h"><h3>Ta publication</h3><span class="small muted">Elle compte : relations, moral, fans</span></div>' +
+    '<div class="chips" style="margin-bottom:8px">' + targets.map(function (t) {
+      return '<button class="chip' + (UI.replyT === t[0] ? ' on' : '') + '" data-act="replyTarget" data-v="' + t[0] + '">' + UI.esc(t[1]) + '</button>';
+    }).join('') + '</div>' +
+    '<div class="btn-row">' + BM.SOCIAL_TONES.map(function (t) {
+      return '<button class="btn sm' + (t[0] === 'praise' ? ' primary' : '') + '" data-act="replyPost" data-v="' + t[0] + '">' + t[1] + '</button>';
+    }).join('') + '<button class="btn sm" data-act="replySkip">Ne rien publier</button></div></div>';
+};
+UI.actions.replyTarget = function (el) {
+  UI.replyT = el.dataset.v;
+  Array.prototype.forEach.call(el.parentNode.querySelectorAll('.chip'), function (c) { c.classList.toggle('on', c === el); });
+};
+UI.actions.replyPost = function (el) {
+  var res = BM.socialReply(UI.g, UI.replyT, el.dataset.v), card = document.getElementById('reply-card');
+  if (card) card.innerHTML = '<div class="card-h"><h3>Ta publication</h3></div><p class="small" style="margin:0">' + UI.esc(res) + '</p>';
+  UI.save();
+};
+UI.actions.replySkip = function () { UI.g.reply = null; var card = document.getElementById('reply-card'); if (card) card.remove(); UI.save(); };
+
+UI.tab_media = function () {
+  var g = UI.g, me = g.teams[g.userTeam];
+  UI.sub.media = UI.sub.media || 'feed';
+  var tabs = UI.subTabs('media', [['feed', 'Fil'], ['news', 'Actualités'], ['hof', 'Hall of Fame'], ['legacy', 'Héritage']]);
+  if (UI.sub.media === 'news') return tabs + '<div class="card wide"><h2>Actualités de la ligue</h2>' + UI.newsHtml(g, 60) + '</div>';
+  if (UI.sub.media === 'hof') return tabs + UI.hofHtml(g);
+  if (UI.sub.media === 'legacy') {
+    var k = BM.coachInit(g);
+    var rows = BM.achRows(BM.ACH_COACH, k, k);
+    return tabs + '<div class="grid2"><div class="kpi"><b>' + (k.legacyPts || 0) + '</b><span>Points d\'héritage</span></div><div class="kpi"><b>' + k.wins + '-' + (k.games - k.wins) + '</b><span>Bilan comme coach</span></div>' +
+      '<div class="kpi"><b>' + k.series + '</b><span>Séries de playoffs gagnées</span></div><div class="kpi"><b>' + k.titles + '</b><span>Titre(s)</span></div></div>' +
+      '<div class="card wide"><h2>Accomplissements</h2>' + UI.achHtml(rows) + '</div>';
+  }
+  return tabs + '<div class="grid2"><div class="kpi"><b>' + BM.fmtN(BM.fansOf(me)) + '</b><span>Fans des ' + UI.esc(me.nick) + '</span></div><div class="kpi"><b>' + (g.feed || []).filter(function (f) { return f.mine; }).length + '</b><span>Tes publications</span></div>' +
+    '<div class="kpi"><b>' + Math.round(BM.roster(g, me).reduce(function (s, p) { return s + BM.relOf(p); }, 0) / Math.max(1, me.roster.length)) + '</b><span>Relation moyenne avec les joueurs</span></div><div class="kpi"><b>' + (g.hof || []).length + '</b><span>Membres du Hall of Fame</span></div></div>' +
+    '<div class="card"><h2>Fil social</h2>' + UI.feedHtml(g.feed, 20) + '</div>' +
+    '<div class="card"><h2>À la une</h2>' + UI.newsHtml(g, 8) + '</div>';
 };

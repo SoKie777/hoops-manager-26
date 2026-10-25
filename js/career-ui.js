@@ -25,16 +25,17 @@ var UI = BM.UI;
     UI.lastScreen = screenKey;
     var game = BM.careerIsGameDay(g) && !(C.today && C.today.played);
     var where = t ? t.name : p.college + ' · ' + BM.CAREER_PATHS[C.path].l;
-    app.innerHTML = '<div class="app career" style="--team:' + (t ? t.color : '#3bc9db') + '">' +
+    var col = UI.liftTeam(t ? t.color : '#1f7a8c');
+    app.innerHTML = '<div class="app career" style="--team:' + col + ';--team-ink:' + UI.inkOn(col) + '">' +
       '<header class="topbar">' + BM.portrait(p, t, 30) +
       '<div class="who"><b>' + esc(BM.fullName(p)) + ' <span class="cnum">#' + p.number + '</span></b><span>' + esc(where) + ' · ' + esc(BM.dateLabel(g)) + '</span></div>' +
       '<span class="cstat">' + UI.ovrBadge(BM.ovr(p)) + '</span>' +
-      '<button class="btn sm" data-act="cFast" title="Avancer jusqu\'au prochain match">▶▶</button>' +
-      '<button class="btn primary' + (game ? ' pulse' : '') + '" data-act="cNext">' + (game ? 'Match !' : 'Jour suivant') + '</button></header>' +
-      '<main class="page' + (enter ? ' enter' : '') + '">' + UI['c_' + UI.cTab]() + '</main>' +
-      '<nav class="nav"><div class="nav-inner">' + tabs.map(function (x) {
-        return '<button data-act="cTab" data-tab="' + x[0] + '" class="' + (UI.cTab === x[0] ? 'on' : '') + '"><span>' + cIcon(x[0]) + '</span>' + x[1] + '</button>';
-      }).join('') + '</div></nav></div>';
+      '<button class="btn sm ghost" data-act="cFast" title="Avancer jusqu\'au prochain match" aria-label="Avancer jusqu\'au prochain match">' + UI.icon('ff', 'ico sm') + '</button>' +
+      '<button class="btn go' + (game ? ' matchday' : '') + '" data-act="cNext">' + (game ? 'Jour de match' : 'Jour suivant') + UI.icon('next', 'ico sm') + '</button></header>' +
+      '<nav class="nav" aria-label="Navigation"><div class="nav-inner">' + tabs.map(function (x) {
+        return '<button data-act="cTab" data-tab="' + x[0] + '" class="' + (UI.cTab === x[0] ? 'on' : '') + '"' + (UI.cTab === x[0] ? ' aria-current="page"' : '') + '><span>' + cIcon(x[0]) + '</span>' + x[1] + '</button>';
+      }).join('') + '</div></nav>' +
+      '<main class="main"><div class="page' + (enter ? ' enter' : '') + '">' + UI['c_' + UI.cTab]() + '</div></main></div>';
     UI.afterRender();
     UI.cCine();
   };
@@ -55,7 +56,15 @@ var UI = BM.UI;
       '<span class="tag">' + C.pp + ' PP</span>' + (p.injury > 0 ? '<span class="tag bad">Blessé ' + p.injury + ' j</span>' : '') + '</div></div></div>' +
       '<div class="cmeters">' + meter('Énergie', p.condition) + meter('Moral', p.morale) + meter('Santé', C.health) + meter('Réputation', C.rep) +
       meter('Coach', C.confCoach) + meter('Vestiaire', C.confMates) + '</div></div>';
-    return head + UI.cTodayCard() + UI.cTrainingCard() + (C.phase === 'prospect' ? UI.cProspectCard() : '') + UI.cLogCard(8);
+    return head + UI.cRecruitCard() + UI.cTodayCard() + UI.cTrainingCard() + (C.phase === 'prospect' ? UI.cProspectCard() : '') + UI.cLogCard(8);
+  };
+  UI.cRecruitCard = function () {
+    var C = UI.g.career, R = C.recruit;
+    if (!R || R.chosen !== null) return '';
+    return '<div class="card hero-card wide"><div class="card-h"><h2>Showcase des prospects : tu es classé #' + R.rank + '</h2><span class="small muted">Choisis ton programme pour commencer</span></div>' +
+      '<div class="opts">' + R.offers.map(function (o, i) {
+        return '<button class="opt" data-act="cProgram" data-i="' + i + '"><b>' + esc(o.name) + ' <span class="stars">' + UI.stars(o.stars) + '</span></b><span>Rôle prévu : ' + esc(o.role) + '. ' + esc(o.d) + '</span></button>';
+      }).join('') + '</div></div>';
   };
 
   UI.cTodayCard = function () {
@@ -161,7 +170,10 @@ var UI = BM.UI;
   UI.actions.cNext = function () { UI.cAdvance(false); };
   UI.actions.cFast = function () { UI.cAdvance(true); };
 
+  UI.actions.cProgram = function (el) { UI.toast(BM.careerChooseProgram(UI.g, +el.dataset.i)); UI.save(); UI.render(); };
   UI.cAdvance = function (fast) {
+    var R = UI.g.career.recruit;
+    if (R && R.chosen === null) { UI.cTab = 'day'; UI.render(); window.scrollTo(0, 0); UI.toast('Choisis d\'abord ton programme parmi les offres.'); return; }
     var g = UI.g, C = g.career;
     for (var n = 0; n < 40; n++) {
       if (fast && C.today && !C.today.act && !BM.careerIsGameDay(g)) BM.careerDoActivity(g, 'repos');
@@ -254,7 +266,11 @@ var UI = BM.UI;
       '<div class="card"><div class="cdeltas">' + dl('réputation', d.rep) + dl('confiance coach', d.confCoach) + dl('coéquipiers', d.confMates) + dl('moral', d.morale) + (pg.pp ? '<div><b class="good">+' + pg.pp + '</b><span>PP</span></div>' : '') + '</div>' +
       (pg.badges && pg.badges.length ? '<p class="small" style="margin:6px 0 0">Badge débloqué : <b>' + esc(pg.badges.join(', ')) + '</b></p>' : '') +
       (pg.status ? '<p class="small" style="margin:6px 0 0">Nouveau statut : <b>' + BM.CAREER_STATUS[pg.status.now].l + '</b></p>' : '') +
+      (pg.rank ? '<p class="small" style="margin:6px 0 0;color:' + (pg.rank.up ? 'var(--good)' : 'var(--bad)') + '">Rang Legacy ' + (pg.rank.up ? 'en hausse' : 'en baisse') + ' : <b>' + esc(pg.rank.l) + '</b></p>' : '') +
+      (pg.cats && pg.cats.length ? '<p class="small" style="margin:6px 0 0">Niveau supérieur : <b>' + esc(pg.cats.join(', ')) + '</b></p>' : '') +
+      (pg.ach && pg.ach.length ? '<p class="small" style="margin:6px 0 0">Accomplissement : <b>' + esc(pg.ach.map(function (a) { return a.l + ' (+' + a.pts + ')'; }).join(', ')) + '</b></p>' : '') +
       (line.injured ? '<p class="small" style="margin:6px 0 0;color:var(--bad)">Blessé : ' + line.injured + ' jours d\'absence.</p>' : '') + '</div>' +
+      UI.replyCard(g, fx) +
       UI.whyCard(fx.why) +
       (UI.matchAnalyticsCard ? UI.matchAnalyticsCard(fx, m.side[0], m.side[1]) : '') +
       '<button class="btn primary block" data-act="cAfterMatch">' + (C.interview ? 'Zone mixte : interview' : 'Continuer') + '</button>');
@@ -436,7 +452,16 @@ var UI = BM.UI;
         }).join('') + '</tbody></table></div>' : '') + '</div>';
     var t = BM.cTeam(g);
     var radar = BM.radarSvg ? '<div class="card radar-card"><div class="card-h"><h2>Profil radar 6 axes</h2><span class="small muted">' + BM.POS_LABEL[p.pos] + '</span></div><div class="radar-wrap">' + BM.radarSvg(p, t ? t.color : '#3bc9db', 190) + '</div></div>' : '';
-    return attrs + radar + badges + season + UI.gravityCard(p);
+    var cats = '<div class="card"><div class="card-h"><h2>Expérience de jeu</h2><span class="small muted">+3 PP par niveau</span></div>' + Object.keys(BM.CAREER_CATS).map(function (k) {
+      var xp = BM.CAREER_CATS[k].xp(C.cnt), lv = BM.catLevel(xp), from = 12 * lv * lv, to = BM.catNext(lv);
+      return '<div class="ach"><div class="ach-h"><span class="tag" style="margin:0">Niv. ' + lv + '</span><b>' + BM.CAREER_CATS[k].l + '</b><span class="small muted">' + Math.round(xp) + ' / ' + to + '</span></div><div class="bar prog"><i style="width:' + Math.round((xp - from) / Math.max(1, to - from) * 100) + '%"></i></div></div>';
+    }).join('') + '<p class="hint" style="margin:6px 0 0">L\'expérience vient du terrain : tirs réussis, paniers près du cercle, passes, interceptions, contres et rebonds.</p></div>';
+    var mates = t ? '<div class="card"><div class="card-h"><h2>Relations dans le vestiaire</h2><span class="small muted">Coach ' + Math.round(C.confCoach) + '</span></div>' +
+      BM.roster(g, t).filter(function (x) { return x !== p; }).sort(function (a, b) { return BM.cMate(g, b.id) - BM.cMate(g, a.id); }).map(function (x) {
+        var v = BM.cMate(g, x.id);
+        return '<div class="attr"><span><span class="pos">' + x.pos + '</span> ' + esc(BM.shortName(x)) + '</span><b class="' + (v >= 60 ? 'a-hi' : v < 35 ? 'a-lo' : 'a-mid') + '">' + BM.relLabel(v) + ' · ' + Math.round(v) + '</b></div>';
+      }).join('') + '</div>' : '';
+    return attrs + cats + mates + radar + badges + season + UI.gravityCard(p);
   };
   UI.actions.cPP = function (el) {
     if (BM.careerSpendPP(UI.g, el.dataset.k)) { if (BM.Juice) { BM.Juice.sound('tap'); BM.Juice.haptic('light'); } UI.save(); UI.render(); }
@@ -489,10 +514,9 @@ var UI = BM.UI;
     var press = '<div class="card"><h2 style="margin-bottom:6px">La presse</h2>' + (C.press.length ? C.press.slice(0, 8).map(function (a) {
       return '<div class="art t' + (a.tone === '+' ? 'p' : a.tone === '-' ? 'n' : '') + '"><span class="lbl">' + esc(a.out) + '</span><h3>' + esc(a.t) + '</h3><p class="small muted" style="margin:0">' + esc(a.s) + '</p></div>';
     }).join('') : '<p class="small muted" style="margin:0">Personne n\'écrit encore sur toi.</p>') + '</div>';
-    var feed = '<div class="card"><h2 style="margin-bottom:6px">Réseaux</h2>' + (C.feed.length ? C.feed.slice(0, 10).map(function (f) {
-      return '<div class="post' + (f.mine ? ' mine' : '') + '"><div class="av">' + esc(f.who.charAt(0)) + '</div><div><b>' + esc(f.who) + '</b> <span class="muted small">' + esc(f.h) + '</span><p style="margin:2px 0 0">' + esc(f.t) + '</p><span class="small muted">♥ ' + BM.fmtN(f.likes) + '</span></div></div>';
-    }).join('') : '<p class="small muted" style="margin:0">Fil vide.</p>') + '</div>';
-    return head + sp + press + feed;
+    var feed = '<div class="card"><h2 style="margin-bottom:6px">Réseaux</h2>' + UI.feedHtml(C.feed, 12) + '</div>';
+    var news = '<div class="card"><h2 style="margin-bottom:6px">Actualités de la ligue</h2>' + UI.newsHtml(g, 12) + '</div>';
+    return head + feed + news + press + sp + UI.hofHtml(g);
   };
   UI.actions.cSpYes = function (el) { UI.toast(BM.careerAcceptSp(UI.g, el.dataset.id)); UI.save(); UI.render(); };
   UI.actions.cSpNeg = function (el) { UI.toast(BM.careerNegotiateSp(UI.g, el.dataset.id)); UI.save(); UI.render(); };
@@ -526,7 +550,31 @@ var UI = BM.UI;
         return '<tr><td>' + (2026 + s.season - 1) + '-' + String(2026 + s.season).slice(2) + '</td><td>' + esc(s.team) + '</td><td>' + esc(s.status) + '</td><td class="num">' + s.gp + '</td><td class="num"><b>' + s.pts + '</b></td><td class="num">' + s.reb + '</td><td class="num">' + s.ast + '</td><td class="num">' + s.ovr + '</td><td>' + esc(s.res) + (s.awards && s.awards.length ? ' · ' + s.awards.map(esc).join(', ') : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>' : '') + '</div>';
     var exp = '<div class="card"><h2 style="margin-bottom:6px">Sauvegarde</h2><p class="small muted" style="margin:0 0 8px">Exporte ta carrière en fichier pour ne jamais la perdre.</p><button class="btn" data-act="exportSave">Exporter (.json)</button> <button class="btn danger" data-act="cQuit">Quitter vers le menu</button></div>';
-    return head + seasons + UI.cLogCard(30) + exp;
+    return head + UI.cLegacyCard() + UI.cPowersCard() + seasons + '<div class="card wide"><div class="card-h"><h2>Accomplissements</h2><span class="small muted">' + (C.legacyPts || 0) + ' points d\'héritage</span></div>' +
+      UI.achHtml(BM.achRows(BM.ACH_PLAYER, C, BM.careerAchCtx(g, null))) + '</div>' + UI.cLogCard(30) + exp;
+  };
+  UI.cLegacyCard = function () {
+    var g = UI.g, r = BM.legacyRank(g);
+    var pct = r.next ? Math.round((r.score - r.from) / (r.next - r.from) * 100) : 100;
+    return '<div class="card"><div class="card-h"><h2>Rang Legacy : ' + esc(r.l) + '</h2><span class="small muted">Score ' + r.score + (r.next ? ' / ' + r.next + ' pour ' + esc(r.nextL) : '') + '</span></div>' +
+      '<div class="rank-track">' + BM.LEGACY_RANKS.map(function (x, i) { return '<i class="' + (i < r.i ? 'on' : i === r.i ? 'cur' : '') + '" title="' + esc(x[0]) + '"></i>'; }).join('') + '</div>' +
+      '<div class="bar prog"><i style="width:' + pct + '%"></i></div><p class="hint" style="margin:6px 0 0">Le rang combine tes points d\'héritage (permanents) et ta réputation actuelle : une mauvaise saison le fait redescendre.</p></div>';
+  };
+  UI.cPowersCard = function () {
+    var g = UI.g, C = g.career, t = BM.cTeam(g);
+    return '<div class="card"><h2 style="margin-bottom:6px">Ton influence</h2>' + BM.CAREER_POWERS.map(function (pw) {
+      var ok = BM.careerPowerOk(g, pw.id), act = '';
+      if (ok.ok && pw.id === 'trade') act = '<button class="btn sm" data-act="cPower" data-id="trade">Demander</button>';
+      if (ok.ok && pw.id === 'recruit') act = '<select class="sel" data-change="cRecruitFA" style="max-width:220px"><option value="">Choisir un agent libre…</option>' + g.freeAgents.map(function (id) { return g.players[id]; }).filter(function (x) { return x && !x.prospect; })
+        .sort(function (a, b) { return BM.ovrRaw(b) - BM.ovrRaw(a); }).slice(0, 6).map(function (x) { return '<option value="' + x.id + '">' + x.pos + ' · ' + esc(BM.shortName(x)) + ' (' + BM.ovr(x) + ')</option>'; }).join('') + '</select>';
+      if (ok.ok && pw.id === 'system' && t) act = '<select class="sel" data-change="cSystem" style="max-width:220px">' + Object.keys(BM.SYSTEMS).map(function (k) { return '<option value="' + k + '"' + (t.tactics.system === k ? ' selected' : '') + '>' + esc(BM.SYSTEMS[k].l) + '</option>'; }).join('') + '</select>';
+      return '<div class="rec"><div><b>' + esc(pw.l) + '</b> <span class="tag">' + BM.LEGACY_RANKS[pw.rank][0] + '</span><p>' + esc(ok.ok ? pw.d : ok.why) + '</p></div>' + act + '</div>';
+    }).join('') + '</div>';
+  };
+  UI.actions.cPower = function (el) { UI.toast(BM.careerUsePower(UI.g, el.dataset.id)); UI.save(); UI.render(); };
+  UI.changes.cRecruitFA = function (el) { if (!el.value) return; UI.toast(BM.careerUsePower(UI.g, 'recruit', +el.value)); UI.save(); UI.render(); };
+  UI.changes.cSystem = function (el) { UI.toast(BM.careerUsePower(UI.g, 'system', el.value)); UI.save(); UI.render(); };
+  UI.cNoop = function () {
   };
   UI.actions.cQuit = function () { UI.g = null; UI.render(); };
 })();
@@ -573,6 +621,7 @@ var UI = BM.UI;
     if (!c.first || !c.last) { UI.toast('Donne un prénom et un nom à ton joueur.'); return; }
     UI.g = BM.newCareer({ seed: (Date.now() ^ (Math.random() * 1e9)) >>> 0, first: c.first, last: c.last, home: c.home, pos: c.pos, arch: c.arch, trait: c.trait, path: c.path, num: c.num });
     UI.cTab = 'day';
+    window.scrollTo(0, 0);
     UI.g.career.cine.push({ k: 'Ma Carrière', l: [c.home ? c.home + ', un terrain en béton.' : 'Un terrain en béton, un panier sans filet.', '19 ans. Un rêve : la NBA.', 'Premier jour à ' + BM.cPlayer(UI.g).college + '.'] });
     UI.save();
     UI.render();
