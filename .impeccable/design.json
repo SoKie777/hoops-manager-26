@@ -1,0 +1,528 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T16:00:00Z",
+  "title": "Design System: Hoops Manager 26",
+  "extensions": {
+    "colorMeta": {
+      "club-colour": {
+        "role": "primary",
+        "displayName": "Club Colour",
+        "canonical": "oklch(53.0% 0.207 22)",
+        "tonalRamp": [
+          "#280000",
+          "#540000",
+          "#84000b",
+          "#b6001f",
+          "#de3040",
+          "#fd6567",
+          "#ff9c99",
+          "#ffd5d0"
+        ],
+        "note": "Stylesheet fallback only; each franchise colour is set on .app after UI.liftTeam (>=1.9:1 vs #0d1b2a)."
+      },
+      "club-ink": {
+        "role": "primary",
+        "displayName": "Club Ink",
+        "note": "White or night navy, picked by luminance against the lifted club colour (UI.inkOn)."
+      },
+      "interaction-blue": {
+        "role": "primary",
+        "displayName": "Interaction Blue",
+        "canonical": "oklch(64.7% 0.186 258)",
+        "tonalRamp": [
+          "#000431",
+          "#001d5f",
+          "#003892",
+          "#0056c3",
+          "#2a79e9",
+          "#579dff",
+          "#8ec6ff",
+          "#c9f1ff"
+        ]
+      },
+      "interaction-ink": {
+        "role": "primary",
+        "displayName": "Interaction Ink"
+      },
+      "interaction-blue-soft": {
+        "role": "primary",
+        "displayName": "Interaction Blue Soft"
+      },
+      "trophy-gold": {
+        "role": "secondary",
+        "displayName": "Trophy Gold",
+        "canonical": "oklch(85.0% 0.146 90)",
+        "tonalRamp": [
+          "#170700",
+          "#371e00",
+          "#5a3900",
+          "#7d5700",
+          "#9e7700",
+          "#bf9a11",
+          "#dfc16c",
+          "#ffedb2"
+        ]
+      },
+      "win-green": {
+        "role": "tertiary",
+        "displayName": "Win Green",
+        "canonical": "oklch(71.2% 0.164 154)",
+        "tonalRamp": [
+          "#001400",
+          "#003203",
+          "#005315",
+          "#00762d",
+          "#00984d",
+          "#3ab971",
+          "#82dba0",
+          "#c2ffd5"
+        ]
+      },
+      "caution-amber": {
+        "role": "tertiary",
+        "displayName": "Caution Amber",
+        "canonical": "oklch(80.6% 0.147 79)",
+        "tonalRamp": [
+          "#1b0400",
+          "#3e1900",
+          "#643200",
+          "#884f00",
+          "#ab7000",
+          "#cd9217",
+          "#ebbc6d",
+          "#ffe9b3"
+        ]
+      },
+      "loss-red": {
+        "role": "tertiary",
+        "displayName": "Loss Red",
+        "canonical": "oklch(66.1% 0.189 22)",
+        "tonalRamp": [
+          "#270000",
+          "#520003",
+          "#800012",
+          "#af0927",
+          "#d73d46",
+          "#f76b6c",
+          "#ffa09c",
+          "#ffd6d2"
+        ]
+      },
+      "night-navy": {
+        "role": "neutral",
+        "displayName": "Night Navy",
+        "canonical": "oklch(21.8% 0.036 251)",
+        "tonalRamp": [
+          "#020c19",
+          "#172535",
+          "#324152",
+          "#4f5f71",
+          "#6e7f92",
+          "#8fa0b4",
+          "#b4c6db",
+          "#def1ff"
+        ]
+      },
+      "panel-navy": {
+        "role": "neutral",
+        "displayName": "Panel Navy",
+        "canonical": "oklch(26.9% 0.042 263)",
+        "tonalRamp": [
+          "#030a1d",
+          "#192439",
+          "#344056",
+          "#515e76",
+          "#707e97",
+          "#919fba",
+          "#b6c5e0",
+          "#e0efff"
+        ]
+      },
+      "panel-navy-raised": {
+        "role": "neutral",
+        "displayName": "Panel Navy Raised",
+        "canonical": "oklch(31.8% 0.052 263)",
+        "tonalRamp": [
+          "#030a1f",
+          "#16233d",
+          "#31405c",
+          "#4e5e7c",
+          "#6d7e9d",
+          "#8d9fc0",
+          "#b2c5e7",
+          "#deefff"
+        ]
+      },
+      "panel-navy-high": {
+        "role": "neutral",
+        "displayName": "Panel Navy High",
+        "canonical": "oklch(35.8% 0.060 263)",
+        "tonalRamp": [
+          "#020920",
+          "#142341",
+          "#2f3f5f",
+          "#4c5d80",
+          "#6b7da1",
+          "#8b9fc4",
+          "#b0c5ec",
+          "#ddefff"
+        ]
+      },
+      "chalk-text": {
+        "role": "neutral",
+        "displayName": "Chalk Text",
+        "canonical": "oklch(90.8% 0.005 118)",
+        "tonalRamp": [
+          "#0b0b09",
+          "#242421",
+          "#3f403d",
+          "#5d5e5b",
+          "#7d7e7a",
+          "#9e9f9b",
+          "#c4c5c1",
+          "#eeefeb"
+        ]
+      },
+      "slate-label": {
+        "role": "neutral",
+        "displayName": "Slate Label",
+        "canonical": "oklch(68.0% 0.034 262)",
+        "tonalRamp": [
+          "#040b19",
+          "#1b2435",
+          "#364052",
+          "#535e71",
+          "#727e92",
+          "#939fb4",
+          "#b8c5db",
+          "#e2efff"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline"
+      },
+      "hairline-strong": {
+        "role": "neutral",
+        "displayName": "Hairline Strong"
+      },
+      "clock-black": {
+        "role": "neutral",
+        "displayName": "Clock Black"
+      },
+      "rating-elite": {
+        "role": "tertiary",
+        "displayName": "Rating Elite",
+        "note": "Rating chip background for overall 85+ (UI.ovrColor)."
+      },
+      "rating-starter": {
+        "role": "tertiary",
+        "displayName": "Rating Starter",
+        "note": "Rating chip background for overall 78-84 (UI.ovrColor)."
+      },
+      "rating-rotation": {
+        "role": "tertiary",
+        "displayName": "Rating Rotation",
+        "note": "Rating chip background for overall 70-77 (UI.ovrColor)."
+      },
+      "rating-bench": {
+        "role": "tertiary",
+        "displayName": "Rating Bench",
+        "note": "Rating chip background for overall 62-69 (UI.ovrColor)."
+      },
+      "rating-fringe": {
+        "role": "tertiary",
+        "displayName": "Rating Fringe",
+        "note": "Rating chip background for overall 55-61 (UI.ovrColor)."
+      },
+      "rating-weak": {
+        "role": "tertiary",
+        "displayName": "Rating Weak",
+        "note": "Rating chip background for overall below 55 (UI.ovrColor)."
+      },
+      "light-ground": {
+        "role": "neutral",
+        "displayName": "Light Ground",
+        "note": "Light theme value (:root[data-theme=light])."
+      },
+      "light-panel": {
+        "role": "neutral",
+        "displayName": "Light Panel",
+        "note": "Light theme value (:root[data-theme=light])."
+      },
+      "light-panel-raised": {
+        "role": "neutral",
+        "displayName": "Light Panel Raised",
+        "note": "Light theme value (:root[data-theme=light])."
+      },
+      "light-panel-high": {
+        "role": "neutral",
+        "displayName": "Light Panel High",
+        "note": "Light theme value (:root[data-theme=light])."
+      },
+      "light-text": {
+        "role": "neutral",
+        "displayName": "Light Text",
+        "note": "Light theme value (:root[data-theme=light])."
+      },
+      "light-label": {
+        "role": "neutral",
+        "displayName": "Light Label",
+        "note": "Light theme value (:root[data-theme=light])."
+      },
+      "light-interaction-blue": {
+        "role": "neutral",
+        "displayName": "Light Interaction Blue",
+        "note": "Light theme value (:root[data-theme=light])."
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Start-screen title and post-match result banner only."
+      },
+      "scoreline": {
+        "displayName": "Scoreline",
+        "purpose": "Scorebug score blocks; 22px at 820x380, 30px from 900px."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Club name in the top bar; modal titles at 700."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text and messages; 13px at 820x380. Tabular figures set globally."
+      },
+      "table": {
+        "displayName": "Table",
+        "purpose": "Tables, picker options, match feed."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase panel headings, column headers, field labels, quick-instruction captions."
+      }
+    },
+    "shadows": [
+      {
+        "name": "bar-lift",
+        "value": "0 2px 8px rgba(0, 0, 0, 0.25)",
+        "purpose": "Sticky club bar over scrolling content."
+      },
+      {
+        "name": "toast",
+        "value": "0 8px 24px rgba(0, 0, 0, 0.4)",
+        "purpose": "Bottom toast."
+      },
+      {
+        "name": "modal",
+        "value": "0 16px 48px rgba(0, 0, 0, 0.5)",
+        "purpose": "Modals, over a rgba(5, 10, 18, 0.62) scrim."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Default easing for entrances, toasts, meters, score bumps."
+      },
+      {
+        "name": "page-enter",
+        "value": "fade 180ms",
+        "purpose": "Page change."
+      },
+      {
+        "name": "modal-rise",
+        "value": "translateY(8px) to 0 over 200ms",
+        "purpose": "Modal entrance."
+      },
+      {
+        "name": "toast-in",
+        "value": "translateY(8px) to 0 over 200ms",
+        "purpose": "Toast and scorebug confirmation toast."
+      },
+      {
+        "name": "hover",
+        "value": "150ms background/color",
+        "purpose": "Hover and selection state changes."
+      },
+      {
+        "name": "meter-grow",
+        "value": "scaleX 0 to 1 over 500ms",
+        "purpose": "Meter bars."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "All animation and transition disabled under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "landscape-phone",
+        "value": "(orientation: landscape) and (max-height: 620px)",
+        "note": "Primary target 820x380: 40px bar, 72px icon-over-label rail, two page columns."
+      },
+      {
+        "name": "short",
+        "value": "(max-height: 460px)",
+        "note": "Modals go full-screen."
+      },
+      {
+        "name": "desktop",
+        "value": "(min-width: 900px)",
+        "note": "176px labelled rail, two columns capped at 1320px, 380px live-match strip."
+      },
+      {
+        "name": "portrait",
+        "value": "(orientation: portrait) and (max-width: 899px)",
+        "note": "Bottom navigation bar."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one blue action in an area.",
+      "html": "<button class=\"ds-btn-primary\">Valider la tactique</button>",
+      "css": ".ds-btn-primary { font: 600 13px/1.2 var(--ui, Roboto, system-ui, sans-serif); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--accent, #3d8bfd); background: var(--accent, #3d8bfd); color: var(--accent-ink, #fff); cursor: pointer; transition: background 0.15s, transform 0.1s; } .ds-btn-primary:hover { background: color-mix(in srgb, var(--accent, #3d8bfd) 86%, #fff); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent, #3d8bfd); outline-offset: 1px; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Every non-primary action.",
+      "html": "<button class=\"ds-btn-default\">Comparer</button>",
+      "css": ".ds-btn-default { font: 600 13px/1.2 var(--ui, Roboto, system-ui, sans-serif); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--line-strong, rgba(224,225,221,0.2)); background: var(--panel-2, #24324d); color: var(--text, #e0e1dd); cursor: pointer; transition: background 0.15s, transform 0.1s; } .ds-btn-default:hover { background: var(--panel-3, #2c3c5c); } .ds-btn-default:active { transform: translateY(1px); } .ds-btn-default:focus-visible { outline: 2px solid var(--accent, #3d8bfd); outline-offset: 1px; } .ds-btn-default:disabled { opacity: 0.4; cursor: default; }"
+    },
+    {
+      "name": "Club Bar",
+      "kind": "nav",
+      "refersTo": "club-bar",
+      "description": "Top bar in the managed franchise's lifted colour: crest, club name, date, Continuer.",
+      "html": "<header class=\"ds-bar\" style=\"--team:#c8102e;--team-ink:#fff\"><span class=\"ds-crest\">KIN</span><div class=\"ds-who\"><b>Kinshasa Lakers</b><span>12 nov. · Saison 2026</span></div><button class=\"ds-go\">Continuer</button></header>",
+      "css": ".ds-bar { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 12px; background: var(--team, #c8102e); color: var(--team-ink, #fff); box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: var(--ui, Roboto, system-ui, sans-serif); } .ds-crest { flex: none; width: 32px; height: 32px; border-radius: 50%; display: inline-grid; place-items: center; background: #fff; color: var(--team, #c8102e); font-weight: 800; font-size: 11px; } .ds-who { flex: 1; display: flex; align-items: baseline; gap: 10px; min-width: 0; } .ds-who b { font-size: 16px; font-weight: 800; } .ds-who span { font-size: 12px; opacity: 0.85; } .ds-go { font: 800 13px/1.2 var(--ui, Roboto, system-ui, sans-serif); padding: 8px 14px; border-radius: 4px; border: 0; background: #fff; color: #0d1b2a; cursor: pointer; } .ds-go:active { transform: translateY(1px); } .ds-go:focus-visible { outline: 2px solid var(--accent, #3d8bfd); outline-offset: 1px; }"
+    },
+    {
+      "name": "Navigation Rail",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Icon-over-label rail; the selected item takes the club colour.",
+      "html": "<nav class=\"ds-rail\" style=\"--team:#c8102e;--team-ink:#fff\"><button class=\"on\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z\"/></svg>Accueil</button><button><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"9\" cy=\"8\" r=\"3.5\"/><path d=\"M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5\"/></svg>Effectif</button></nav>",
+      "css": ".ds-rail { width: 84px; display: flex; flex-direction: column; background: var(--panel, #1b263b); border-right: 1px solid var(--line, rgba(224,225,221,0.1)); padding: 4px 0; font-family: var(--ui, Roboto, system-ui, sans-serif); } .ds-rail button { height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: none; color: var(--muted, #8d99ae); font-size: 11px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; } .ds-rail svg { width: 20px; height: 20px; } .ds-rail button:hover { color: var(--text, #e0e1dd); background: var(--panel-2, #24324d); } .ds-rail button.on { background: var(--team, #c8102e); color: var(--team-ink, #fff); font-weight: 700; } .ds-rail button:focus-visible { outline: 2px solid var(--accent, #3d8bfd); outline-offset: -2px; }"
+    },
+    {
+      "name": "Tabs",
+      "kind": "nav",
+      "description": "Sticky page tabs; the selected tab gets a 2px blue underline.",
+      "html": "<div class=\"ds-tabs\"><button class=\"on\">Effectif</button><button>Statistiques</button><button>Contrats</button></div>",
+      "css": ".ds-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line, rgba(224,225,221,0.1)); font-family: var(--ui, Roboto, system-ui, sans-serif); } .ds-tabs button { border: 0; background: none; padding: 8px 12px 7px; font-size: 13px; font-weight: 600; color: var(--muted, #8d99ae); box-shadow: inset 0 -2px 0 transparent; cursor: pointer; transition: color 0.15s, box-shadow 0.15s; } .ds-tabs button:hover { color: var(--text, #e0e1dd); } .ds-tabs button.on { color: var(--text, #e0e1dd); box-shadow: inset 0 -2px 0 var(--accent, #3d8bfd); } .ds-tabs button:focus-visible { outline: 2px solid var(--accent, #3d8bfd); }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Selectable option; selected gets the blue border and 16% wash.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip on\">Pick and roll</button><button class=\"ds-chip\">Isolation</button><button class=\"ds-chip\">Jeu de passes</button></div>",
+      "css": ".ds-chips { display: flex; flex-wrap: wrap; gap: 4px; } .ds-chip { font: 400 12.5px/1.3 var(--ui, Roboto, system-ui, sans-serif); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--line, rgba(224,225,221,0.1)); background: var(--panel-2, #24324d); color: var(--text, #e0e1dd); cursor: pointer; } .ds-chip:hover { background: var(--panel-3, #2c3c5c); } .ds-chip.on { border-color: var(--accent, #3d8bfd); background: var(--accent-soft, rgba(61,139,253,0.16)); } .ds-chip:focus-visible { outline: 2px solid var(--accent, #3d8bfd); outline-offset: 1px; }"
+    },
+    {
+      "name": "Rating Chip",
+      "kind": "chip",
+      "refersTo": "rating-chip",
+      "description": "Overall rating on the six-step scale, beside a position pill.",
+      "html": "<span class=\"ds-pos\">MEN</span> <span class=\"ds-ovr\" style=\"background:#1f9d55\">88</span> <span class=\"ds-ovr\" style=\"background:#2f8f6f\">80</span> <span class=\"ds-ovr\" style=\"background:#2f7d95\">73</span> <span class=\"ds-ovr\" style=\"background:#4a6488\">65</span> <span class=\"ds-ovr\" style=\"background:#b45309\">58</span> <span class=\"ds-ovr\" style=\"background:#b63a3f\">49</span>",
+      "css": ".ds-ovr { display: inline-block; min-width: 28px; text-align: center; font: 700 12.5px/1.3 var(--ui, Roboto, system-ui, sans-serif); font-variant-numeric: tabular-nums; border-radius: 3px; padding: 2px 4px; color: #fff; } .ds-pos { display: inline-block; min-width: 32px; text-align: center; font: 700 11px/1.3 var(--ui, Roboto, system-ui, sans-serif); padding: 2px 4px; border-radius: 3px; background: var(--panel-3, #2c3c5c); color: var(--text, #e0e1dd); }"
+    },
+    {
+      "name": "Card with Table",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat navy panel with an uppercase label and a dense tabular list; the user's row takes the club tint.",
+      "html": "<section class=\"ds-card\"><h3>Effectif</h3><table><thead><tr><th>Joueur</th><th class=\"n\">Âge</th><th class=\"n\">Pts</th></tr></thead><tbody><tr><td>K. Moongo</td><td class=\"n\">27</td><td class=\"n\">24,1</td></tr><tr class=\"me\"><td>A. Diaallo</td><td class=\"n\">23</td><td class=\"n\">17,8</td></tr><tr><td>T. Saar</td><td class=\"n\">31</td><td class=\"n\">9,4</td></tr></tbody></table></section>",
+      "css": ".ds-card { background: var(--panel, #1b263b); border: 1px solid var(--line, rgba(224,225,221,0.1)); border-radius: 4px; padding: 10px 12px; color: var(--text, #e0e1dd); font: 400 14px/1.4 var(--ui, Roboto, system-ui, sans-serif); font-variant-numeric: tabular-nums; } .ds-card h3 { margin: 0 0 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted, #8d99ae); } .ds-card table { width: 100%; border-collapse: collapse; font-size: 12.5px; } .ds-card th { text-align: left; color: var(--muted, #8d99ae); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 5px 4px; border-bottom: 1px solid var(--line-strong, rgba(224,225,221,0.2)); } .ds-card td { padding: 5px 4px; height: 32px; border-bottom: 1px solid var(--line, rgba(224,225,221,0.1)); } .ds-card tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2, #24324d) 40%, transparent); } .ds-card tbody tr:hover td { background: var(--panel-2, #24324d); } .ds-card tr.me td { background: color-mix(in srgb, #c8102e 34%, #1b263b); font-weight: 700; } .ds-card .n { text-align: right; }"
+    },
+    {
+      "name": "Field and Segmented Control",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Labelled select and a segmented choice.",
+      "html": "<div class=\"ds-field\"><label>Rythme</label><select><option>Rapide</option><option>Normal</option></select></div><div class=\"ds-seg\"><button class=\"on\">Homme à homme</button><button>Zone 2-3</button><button>Press</button></div>",
+      "css": ".ds-field { display: grid; gap: 5px; margin-bottom: 8px; font-family: var(--ui, Roboto, system-ui, sans-serif); } .ds-field label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted, #8d99ae); } .ds-field select { font: 400 13px var(--ui, Roboto, system-ui, sans-serif); padding: 8px 10px; border-radius: 4px; border: 1px solid var(--line-strong, rgba(224,225,221,0.2)); background: var(--panel-2, #24324d); color: var(--text, #e0e1dd); } .ds-field select:focus { outline: none; border-color: var(--accent, #3d8bfd); } .ds-seg { display: flex; border: 1px solid var(--line-strong, rgba(224,225,221,0.2)); border-radius: 4px; overflow: hidden; background: var(--panel-2, #24324d); } .ds-seg button { flex: 1; padding: 7px 6px; border: 0; background: none; font: 600 12.5px var(--ui, Roboto, system-ui, sans-serif); color: var(--muted, #8d99ae); cursor: pointer; transition: background 0.15s, color 0.15s; } .ds-seg button + button { border-left: 1px solid var(--line, rgba(224,225,221,0.1)); } .ds-seg button:hover { color: var(--text, #e0e1dd); } .ds-seg button.on { background: var(--accent, #3d8bfd); color: var(--accent-ink, #fff); } .ds-seg button:focus-visible { outline: 2px solid var(--accent, #3d8bfd); outline-offset: -2px; }"
+    },
+    {
+      "name": "Scorebug and Quick Instructions",
+      "kind": "custom",
+      "refersTo": "scorebug-clock",
+      "description": "Live-match scorebug on team colours and the one-tap quick-instruction grid.",
+      "html": "<div class=\"ds-sb\"><div class=\"t\">Kinshasa</div><div class=\"sc\" style=\"background:#c8102e\">54</div><div class=\"clk\"><b>Q3 04:12</b><span>14</span></div><div class=\"sc\" style=\"background:#1d428a\">51</div><div class=\"t r\">Dakar</div></div><div class=\"ds-qi\"><button class=\"on\"><span>Système</span><b>Motion</b></button><button><span>1re option</span><b>Pick and roll</b></button><button><span>Tempo</span><b>Rapide</b></button><button><span>Défense</span><b>Homme</b></button><button><span>Rotation</span><b>Auto</b></button><button><span>Changements</span><b>Banc</b></button></div>",
+      "css": ".ds-sb { display: grid; grid-template-columns: 1fr auto auto auto 1fr; height: 44px; background: var(--panel, #1b263b); border-bottom: 1px solid var(--line, rgba(224,225,221,0.1)); font-family: var(--ui, Roboto, system-ui, sans-serif); font-variant-numeric: tabular-nums; color: var(--text, #e0e1dd); } .ds-sb .t { display: flex; align-items: center; padding: 0 10px; font-weight: 800; font-size: 15px; } .ds-sb .t.r { justify-content: flex-end; } .ds-sb .sc { display: grid; place-items: center; min-width: 56px; font-size: 26px; font-weight: 900; color: #fff; } .ds-sb .clk { display: grid; place-items: center; align-content: center; min-width: 92px; background: #06101c; color: #fff; line-height: 1.1; } .ds-sb .clk b { font-size: 15px; font-weight: 800; letter-spacing: 0.04em; } .ds-sb .clk span { font-size: 11px; font-weight: 800; color: var(--gold, #f2c94c); } .ds-qi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line, rgba(224,225,221,0.1)); font-family: var(--ui, Roboto, system-ui, sans-serif); } .ds-qi button { display: grid; gap: 1px; text-align: left; padding: 5px 8px; background: var(--panel, #1b263b); border: 0; color: var(--text, #e0e1dd); cursor: pointer; } .ds-qi button:hover { background: var(--panel-2, #24324d); } .ds-qi button.on { background: var(--accent-soft, rgba(61,139,253,0.16)); box-shadow: inset 0 -2px 0 var(--accent, #3d8bfd); } .ds-qi button:focus-visible { outline: 2px solid var(--accent, #3d8bfd); outline-offset: -2px; } .ds-qi span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted, #8d99ae); } .ds-qi b { font-size: 12.5px; font-weight: 700; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Club Office, Held Sideways",
+    "overview": "This is the management-game category standard played straight, at Football Manager 26 Mobile's level of craft. A deep night-navy ground carries flat navy panels with small corners and hairline borders. The only loud surface is the managed club's own colour, which fills the top bar and marks the selected navigation item. Everything else is information: dense aligned tables, tabular figures, rating chips and short uppercase panel labels. The system is built for a phone held sideways (820×380) and widens to a labelled-rail desktop layout from 900px.\n\nDensity is the point. Rows are 28 to 32px tall, panels pad at 8 to 12px, and the type ramp runs from 11px labels to 16px headings, with only the scorebug and result banners going larger. One workhorse sans (Roboto, self-hosted, variable 100 to 900) does every job. Depth comes from tonal steps between navy layers, not from glow; shadows exist only where something truly floats above the page (top bar, modal, toast). The 2D court is the one place the world gets warm: a maple floor, an orange ball and club-coloured players.\n\nThe user rejected the incumbent near-black + orange-glow look and any invented world. Selection reads the same for all 30 franchises because interaction uses a single blue that never changes with the club.",
+    "keyCharacteristics": [
+      "Night-navy ground, three tonal panel steps, hairline borders, no glow.",
+      "The franchise colour on the top bar and selected nav item, lifted automatically when it is too dark to read on navy.",
+      "A single interaction blue for primary buttons, selected tabs, chips, pickers and focus rings.",
+      "Roboto everywhere, with tabular figures set on the body.",
+      "4px corners on panels and controls, 3px on chips, circles only for crests and avatars.",
+      "Landscape 820×380 first, labelled side rail at 900px and up, bottom navigation in portrait."
+    ],
+    "rules": [
+      {
+        "name": "The Two Voices Rule",
+        "body": "The club colour says whose club this is; the blue says what you selected. Never use the club colour to show selection inside content, and never tint the bar or rail with the blue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Lift Rule",
+        "body": "A franchise colour is never applied raw. It goes through the lift (at least 1.9:1 against Night Navy) and the ink pick before it reaches any surface.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Every number is set with tabular figures and right-aligned in columns. The body sets it globally; don't override it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Weight-Not-Size Rule",
+        "body": "Hierarchy inside a screen comes from weight and colour (Chalk vs Slate), not from larger sizes. Nothing on a management screen goes above 16px except the scorebug, the match-up centre (18px), the start title and the result banner.",
+        "section": "typography"
+      },
+      {
+        "name": "The 820×380 Rule",
+        "body": "Every screen must fit and stay usable at 820×380 in landscape. A layout that only works at desktop width is unfinished.",
+        "section": "layout"
+      },
+      {
+        "name": "The Tone-Step Rule",
+        "body": "To raise something, step it up the navy ladder (Panel → Raised → High). Reach for a shadow only if the element floats above scrolling content.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** put the managed club's colour on the club bar and the selected nav item only, always through the lift (at least 1.9:1 against Night Navy) and the ink pick.",
+      "**Do** use Interaction Blue for every selected, primary or focused state, so selection looks the same for all 30 franchises.",
+      "**Do** raise surfaces by stepping up the navy ladder (Panel Navy → Raised → High) with hairline borders.",
+      "**Do** set numbers in tabular figures, right-aligned, and show overall ratings as rating chips on the six-step scale.",
+      "**Do** keep panels dense: 28 to 32px rows, 8 to 12px padding, 11px uppercase Slate labels for panel headings.",
+      "**Do** check every screen at 820×380 landscape before calling it done.",
+      "**Do** draw icons as inline stroke SVGs (24-unit grid, 1.8 stroke)."
+    ],
+    "donts": [
+      "**Don't** bring back the near-black + orange-glow look: no coloured glows, no glowing borders, no orange chrome. On the court, orange belongs to the ball and the rim.",
+      "**Don't** use the club colour to show selection inside content, or the blue on the club bar or rail.",
+      "**Don't** add a persistent right-hand context panel; at 820×380 the tables need the room.",
+      "**Don't** add shadows to cards or controls; only the club bar, toasts and modals float.",
+      "**Don't** go above 16px on management screens; the scorebug, the match-up centre, the start title and the result banner are the only exceptions.",
+      "**Don't** cover the court with a panel during a live match; pickers open in the side strip."
+    ]
+  }
+}

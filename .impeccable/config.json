@@ -8,6 +8,12 @@
         "value": "roboto",
         "createdAt": "2026-10-25T10:59:26.218Z",
         "reason": "Direction contract (canon, user chose category standard 2026-10-25): Operate surface, Roboto is the Android system face and the genre's workhorse; distinctiveness is not the goal here"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "archivo",
+        "createdAt": "2026-10-25T15:37:10.078Z",
+        "reason": "Only used in the unchosen decision-round sketches under .impeccable/mocks/decision (gitignored, not shipped); the game uses Roboto per DESIGN.md"
       }
     ]
   }
