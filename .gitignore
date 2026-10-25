@@ -3,3 +3,6 @@ dist/
 android/
 *.apk
 .playwright-mcp/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/brief-body.md

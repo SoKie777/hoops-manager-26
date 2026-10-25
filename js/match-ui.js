@@ -4,33 +4,36 @@ var UI = BM.UI;
 // ==================================================================== graphiques analytiques (Shot Chart & Game Flow)
 UI.quarterTable = function (qPts, home, away, hs, as) {
   if (!qPts || !qPts.length) return '';
-  var hdr = qPts.map(function (_, i) { return '<th>' + (i < 4 ? 'Q' + (i + 1) : 'P' + (i - 3)) + '</th>'; }).join('');
+  var hdr = qPts.map(function (q, i) { return '<th class="num">' + (q.l || (i < 4 ? 'Q' + (i + 1) : 'P' + (i - 3))) + '</th>'; }).join('');
   var row = function (t, side, tot) {
-    return '<tr><td style="text-align:left;font-weight:700">' + UI.teamBadge(t) + UI.esc(t.short) + '</td>' +
-      qPts.map(function (q) { return '<td class="num">' + q[side] + '</td>'; }).join('') +
-      '<td class="num" style="font-weight:800;color:var(--accent)">' + tot + '</td></tr>';
+    return '<tr><td style="text-align:left;font-weight:700">' + UI.teamBadge(t, true) + ' ' + UI.esc(t.short) + '</td>' +
+      qPts.map(function (q) { return '<td class="num">' + (q.s ? q.s[side] : q[side]) + '</td>'; }).join('') +
+      '<td class="num" style="font-weight:800">' + tot + '</td></tr>';
   };
-  return '<table class="tbl q-tbl" style="margin-top:8px"><thead><tr><th style="text-align:left">Équipe</th>' + hdr + '<th>TOT</th></tr></thead>' +
+  return '<table class="tbl q-tbl" style="margin-top:8px"><thead><tr><th style="text-align:left">Équipe</th>' + hdr + '<th class="num">Tot.</th></tr></thead>' +
     '<tbody>' + row(home, 0, hs) + row(away, 1, as) + '</tbody></table>';
 };
 
 // Carte des tirs SVG sur demi-terrain (coordonnées moteur : x dans [52..93], y dans [2..48], panier à x=88.75, y=25).
 UI.shotChartSvg = function (shots, home, away, filterSide) {
-  shots = (shots || []).filter(function (s) { return filterSide === undefined || filterSide === null || s.s === filterSide; });
-  // Transformation demi-terrain -> SVG (largeur 250 = y terrain [0..50] * 5, hauteur 210 = profondeur depuis médiane [50..94] * 4.77)
+  // Format moteur : { side, depth (pieds depuis le panier), y (0-50), type, made }. Anciennes sauvegardes : { s, x, y, t, m }.
+  shots = (shots || []).map(function (sh) {
+    return sh.depth !== undefined ? sh : { side: sh.s, depth: 88.75 - sh.x, y: sh.y, type: sh.t, made: sh.m };
+  }).filter(function (s) { return isFinite(s.depth) && isFinite(s.y) && (filterSide === undefined || filterSide === null || s.side === filterSide); });
+  // Demi-terrain SVG : panier en (125, 30.4), 4,8 px par pied.
   var sx = function (sh) { return BM.clamp(sh.y * 5, 8, 242).toFixed(1); };
-  var sy = function (sh) { return BM.clamp((94 - sh.x) * 4.65 + 6, 10, 202).toFixed(1); };
+  var sy = function (sh) { return BM.clamp(30.4 + sh.depth * 4.8, 10, 202).toFixed(1); };
   var zones = { rim: [0, 0], mid: [0, 0], three: [0, 0] };
   var dots = shots.map(function (sh) {
-    var z = zones[sh.t] || zones.mid;
-    z[1]++; if (sh.m) z[0]++;
-    var col = sh.s === 0 ? home.color : away.color;
+    var z = zones[sh.type] || zones.mid;
+    z[1]++; if (sh.made) z[0]++;
+    var col = sh.side === 0 ? home.color : away.color;
     var x = sx(sh), y = sy(sh);
-    if (sh.m) {
-      return '<circle cx="' + x + '" cy="' + y + '" r="4.2" fill="' + col + '" fill-opacity="0.88" stroke="#fff" stroke-width="1"/>';
+    if (sh.made) {
+      return '<circle cx="' + x + '" cy="' + y + '" r="4" fill="' + col + '" stroke="#fff" stroke-width="1"/>';
     }
-    return '<g transform="translate(' + x + ',' + y + ')" stroke="' + col + '" stroke-width="1.5" opacity="0.65">' +
-      '<line x1="-3.2" y1="-3.2" x2="3.2" y2="3.2"/><line x1="3.2" y1="-3.2" x2="-3.2" y2="3.2"/></g>';
+    return '<g transform="translate(' + x + ',' + y + ')" stroke="' + col + '" stroke-width="1.6" opacity="0.8">' +
+      '<line x1="-3" y1="-3" x2="3" y2="3"/><line x1="3" y1="-3" x2="-3" y2="3"/></g>';
   }).join('');
 
   var zPct = function (k, lbl) {
@@ -40,23 +43,23 @@ UI.shotChartSvg = function (shots, home, away, filterSide) {
 
   return '<div class="shotchart-box">' +
     '<svg viewBox="0 0 250 210" class="shotchart-svg" aria-label="Carte des tirs">' +
-    '<defs><linearGradient id="scFloor" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1e2638"/><stop offset="100%" stop-color="#121826"/></linearGradient></defs>' +
-    '<rect x="2" y="2" width="246" height="206" rx="10" fill="url(#scFloor)" stroke="rgba(255,255,255,0.16)" stroke-width="1.5"/>' +
+    '' +
+    '<rect x="2" y="2" width="246" height="206" rx="10" fill="#13223a" stroke="rgba(224,225,221,0.14)" stroke-width="1"/>' +
     // Raquette (16 pieds de large -> 80px, 19 pieds de profond -> 88px)
-    '<rect x="85" y="6" width="80" height="88" fill="rgba(255,122,26,0.08)" stroke="rgba(255,255,255,0.28)" stroke-width="1.2"/>' +
+    '<rect x="85" y="6" width="80" height="88" fill="rgba(224,225,221,0.05)" stroke="rgba(255,255,255,0.28)" stroke-width="1.2"/>' +
     '<circle cx="125" cy="94" r="30" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1.2"/>' +
     // Ligne à 3 points (corners y=3->15px et y=47->235px, arc rayon 23.75 pieds -> 114px autour du panier (125, 30.4))
     '<path d="M 15 6 L 15 71 A 114 114 0 0 0 235 71 L 235 6" fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="1.4"/>' +
     // Zone de non-charge, planche et anneau
     '<path d="M 105 30.4 A 20 20 0 0 0 145 30.4" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.1"/>' +
     '<line x1="110" y1="24" x2="140" y2="24" stroke="#fff" stroke-width="2"/>' +
-    '<circle cx="125" cy="30.4" r="4.8" fill="none" stroke="#ff7a1a" stroke-width="1.8"/>' +
+    '<circle cx="125" cy="30.4" r="4.8" fill="none" stroke="#e8722c" stroke-width="1.8"/>' +
     dots +
     '</svg>' +
     '<div class="sc-legend">' +
     '<span><i class="dot" style="background:' + home.color + '"></i>' + UI.esc(home.short) + '</span>' +
     '<span><i class="dot" style="background:' + away.color + '"></i>' + UI.esc(away.short) + '</span>' +
-    '<span class="muted">● Réussi · × Raté</span>' +
+    '<span class="muted">Rond : réussi · croix : raté</span>' +
     '</div>' +
     '<div class="sc-zones">' + zPct('rim', 'Raquette') + zPct('mid', 'Mi-distance') + zPct('three', '3 Points') + '</div>' +
     '</div>';
@@ -65,14 +68,17 @@ UI.shotChartSvg = function (shots, home, away, filterSide) {
 // Courbe d'évolution de l'écart (Game Flow) sur 48 minutes.
 UI.gameFlowSvg = function (flow, home, away, meta) {
   if (!flow || flow.length < 2) return '';
+  // Format moteur : { t, d } avec d = écart domicile − extérieur ; anciennes sauvegardes : { t, s0, s1 }.
+  flow = flow.map(function (pt) { return { t: pt.t, d: pt.d !== undefined ? pt.d : pt.s0 - pt.s1 }; }).filter(function (pt) { return isFinite(pt.t) && isFinite(pt.d); });
+  if (flow.length < 2) return '';
   var W = 320, H = 116, midY = H / 2;
   var maxT = Math.max(2880, flow[flow.length - 1].t || 2880);
   var maxDiff = 12;
-  flow.forEach(function (pt) { var d = Math.abs(pt.s0 - pt.s1); if (d > maxDiff) maxDiff = d; });
+  flow.forEach(function (pt) { var d = Math.abs(pt.d); if (d > maxDiff) maxDiff = d; });
   var xOf = function (t) { return (12 + (t / maxT) * (W - 24)).toFixed(1); };
   var yOf = function (diff) { return (midY - (diff / maxDiff) * (midY - 14)).toFixed(1); };
 
-  var pts = flow.map(function (pt) { return xOf(pt.t) + ',' + yOf(pt.s0 - pt.s1); }).join(' ');
+  var pts = flow.map(function (pt) { return xOf(pt.t) + ',' + yOf(pt.d); }).join(' ');
   var areaPts = xOf(0) + ',' + midY + ' ' + pts + ' ' + xOf(flow[flow.length - 1].t) + ',' + midY;
 
   var qLines = [720, 1440, 2160, 2880].map(function (sec, idx) {
@@ -88,7 +94,7 @@ UI.gameFlowSvg = function (flow, home, away, meta) {
     '<clipPath id="gfTop"><rect x="0" y="0" width="' + W + '" height="' + midY + '"/></clipPath>' +
     '<clipPath id="gfBot"><rect x="0" y="' + midY + '" width="' + W + '" height="' + midY + '"/></clipPath>' +
     '</defs>' +
-    '<rect x="2" y="2" width="' + (W - 4) + '" height="' + (H - 4) + '" rx="8" fill="#121826" stroke="rgba(255,255,255,0.12)"/>' +
+    '<rect x="2" y="2" width="' + (W - 4) + '" height="' + (H - 4) + '" rx="8" fill="#13223a" stroke="rgba(224,225,221,0.12)"/>' +
     qLines +
     '<line x1="12" y1="' + midY + '" x2="' + (W - 12) + '" y2="' + midY + '" stroke="rgba(255,255,255,0.28)" stroke-width="1"/>' +
     '<polygon points="' + areaPts + '" fill="' + home.color + '" fill-opacity="0.32" clip-path="url(#gfTop)"/>' +
@@ -103,10 +109,10 @@ UI.gameFlowSvg = function (flow, home, away, meta) {
 
 UI.matchAnalyticsCard = function (data, home, away) {
   if ((!data.shots || !data.shots.length) && (!data.flow || data.flow.length < 2)) return '';
-  return '<div class="card"><h3>Analyse radar & télémétrie du match</h3>' +
+  return '<div class="card wide"><h3>Tirs et évolution du score</h3>' +
     '<div class="analytics-grid">' +
-    (data.shots && data.shots.length ? '<div><div class="small muted" style="margin-bottom:4px;font-weight:700">CARTE DES TIRS</div>' + UI.shotChartSvg(data.shots, home, away) + '</div>' : '') +
-    (data.flow && data.flow.length >= 2 ? '<div><div class="small muted" style="margin-bottom:4px;font-weight:700">FLUX DU SCORE (GAME FLOW)</div>' + UI.gameFlowSvg(data.flow, home, away, data) + '</div>' : '') +
+    (data.shots && data.shots.length ? '<div><div class="small muted" style="margin-bottom:4px;font-weight:700">Carte des tirs</div>' + UI.shotChartSvg(data.shots, home, away) + '</div>' : '') +
+    (data.flow && data.flow.length >= 2 ? '<div><div class="small muted" style="margin-bottom:4px;font-weight:700">Écart au score</div>' + UI.gameFlowSvg(data.flow, home, away, data) + '</div>' : '') +
     '</div></div>';
 };
 
@@ -123,24 +129,26 @@ UI.preMatch = function (fx) {
   var injured = BM.roster(g, me).filter(function (p) { return p.injury > 0; });
   var starters = (me.tactics.starters || []).map(function (id) { return g.players[id]; }).filter(function (p) { return p && p.injury <= 0; });
   var oppStar = BM.availablePlayers(g, opp).sort(function (x, y) { return BM.ovrRaw(y) - BM.ovrRaw(x); })[0];
+  var t = me.tactics;
   UI.modalLocked = true;
-  UI.modal('<div class="modal-h"><h2>' + (fx.type === 'playoff' ? BM.ROUND_NAMES[fx.round] + ' · match ' + fx.game : 'Avant-match · Journée ' + fx.round) + '</h2></div>' +
-    '<div class="card hero"><div class="vs"><div class="t">' + UI.teamBadge(h, true) + UI.esc(h.name) + '<span class="small muted">' + h.record.w + 'V-' + h.record.l + 'D · Note ' + avgOvr(h) + '</span></div>' +
-    '<div class="mid">VS<br><span class="small muted">' + UI.esc(BM.dateLabel(g, fx.day)) + '</span></div>' +
-    '<div class="t">' + UI.teamBadge(a, true) + UI.esc(a.name) + '<span class="small muted">' + a.record.w + 'V-' + a.record.l + 'D · Note ' + avgOvr(a) + '</span></div></div></div>' +
-    '<div class="card"><h3 style="margin-bottom:6px">Rapport du recruteur adverse</h3>' +
-    '<p class="small" style="margin:0">' + UI.esc(opp.name) + ' (' + opp.record.w + 'V-' + opp.record.l + 'D, série ' + opp.record.streak + ') évolue sur un rythme <b>' + label('pace', opp.tactics.pace).toLowerCase() +
-    '</b>, système <b>' + label('system', opp.tactics.system) + '</b> et défense <b>' + label('defense', opp.tactics.defense) + '</b>.' +
-    (oppStar ? ' Menace n°1 : <b>' + UI.esc(BM.fullName(oppStar)) + '</b> (' + oppStar.pos + ', Note ' + BM.ovr(oppStar) + ').' : '') + '</p></div>' +
-    '<div class="card"><h3 style="margin-bottom:6px">Votre cinq de départ</h3>' +
-    (starters.length ? starters.map(function (p) {
-      return '<div class="attr"><span><span class="pos">' + p.pos + '</span> ' + UI.esc(BM.shortName(p)) + '</span><span>' + UI.ovrBadge(BM.ovr(p)) + ' <span class="muted small">' + Math.round(p.condition) + '%</span></span></div>';
-    }).join('') : '<p class="small muted" style="margin:0">Aucun titulaire défini : sélection automatique.</p>') +
-    (tired.length ? '<p class="small" style="margin:8px 0 0;color:var(--warn)">Fatigués : ' + tired.map(function (p) { return UI.esc(BM.shortName(p)); }).join(', ') + '</p>' : '') +
+  UI.modal('<div class="modal-h"><h2>' + (fx.type === 'playoff' ? BM.ROUND_NAMES[fx.round] + ' · match ' + fx.game : 'Avant-match · Journée ' + fx.round) + '</h2>' +
+    '<span class="small muted" style="margin-left:auto">' + UI.esc(BM.dateLabel(g, fx.day)) + '</span></div>' +
+    '<div class="card wide"><div class="vs"><div class="t">' + UI.teamBadge(h) + UI.esc(h.name) + '<span class="small muted">' + h.record.w + 'V-' + h.record.l + 'D · note ' + avgOvr(h) + '</span>' + UI.formPips(g, h) + '</div>' +
+    '<div class="mid">VS</div>' +
+    '<div class="t">' + UI.teamBadge(a) + UI.esc(a.name) + '<span class="small muted">' + a.record.w + 'V-' + a.record.l + 'D · note ' + avgOvr(a) + '</span>' + UI.formPips(g, a) + '</div></div></div>' +
+    '<div class="card"><h3>Rapport sur l\'adversaire</h3>' +
+    '<p class="small" style="margin:0">' + UI.esc(opp.name) + ' joue un rythme <b>' + UI.esc(label('pace', opp.tactics.pace).toLowerCase()) +
+    '</b>, en <b>' + UI.esc(label('system', opp.tactics.system)) + '</b>, défense <b>' + UI.esc(label('defense', opp.tactics.defense)) + '</b>.' +
+    (oppStar ? ' Menace n°1 : <b>' + UI.esc(BM.fullName(oppStar)) + '</b> (' + oppStar.pos + ', note ' + BM.ovr(oppStar) + ').' : '') + '</p></div>' +
+    '<div class="card"><div class="card-h"><h3>Votre plan</h3><button class="btn sm" data-act="editTactics">' + UI.icon('clip', 'ico sm') + 'Modifier</button></div>' +
+    '<div class="attr"><span class="muted">Système</span><b style="font-size:12.5px">' + UI.esc(label('system', t.system)) + '</b></div>' +
+    '<div class="attr"><span class="muted">Défense</span><b style="font-size:12.5px">' + UI.esc(label('defense', t.defense)) + '</b></div>' +
+    '<div class="attr"><span class="muted">Cinq</span><span class="small">' + (starters.length ? starters.map(function (p) { return UI.esc(p.last); }).join(', ') : 'automatique') + '</span></div>' +
+    (tired.length ? '<p class="small" style="margin:6px 0 0;color:var(--warn)">Fatigués : ' + tired.map(function (p) { return UI.esc(BM.shortName(p)); }).join(', ') + '</p>' : '') +
     (injured.length ? '<p class="small" style="margin:4px 0 0;color:var(--bad)">Blessés : ' + injured.map(function (p) { return UI.esc(BM.shortName(p)); }).join(', ') + '</p>' : '') +
     '</div>' +
-    '<button class="btn primary block" data-act="playLive">🏀 Jouer le match en direct</button>' +
-    '<div class="btn-row"><button class="btn" style="flex:1" data-act="playQuick">⚡ Résultat instantané</button><button class="btn" style="flex:1" data-act="editTactics">📋 Modifier la tactique</button></div>');
+    '<div class="btn-row"><button class="btn primary" style="flex:2" data-act="playLive">' + UI.icon('play', 'ico sm') + 'Jouer en direct</button>' +
+    '<button class="btn" style="flex:1" data-act="playQuick">' + UI.icon('bolt', 'ico sm') + 'Résultat direct</button></div>');
   UI.pendingFx = fx;
 };
 
@@ -161,14 +169,17 @@ UI.actions.playQuick = function () {
 UI.actions.playLive = function () {
   UI.modalLocked = false;
   var m = new BM.Match(UI.g, UI.pendingFx);
-  UI.live = { m: m, fx: UI.pendingFx, speed: 1, playing: true, timer: null, sel: null, panel: null, viewTab: 'feed' };
+  UI.live = { m: m, fx: UI.pendingFx, speed: 1, playing: true, timer: null, sel: null, panel: null };
   UI.renderMatch();
   UI.schedule();
 };
 
 // ==================================================================== direct
-// Durée d'une possession à l'écran (ms) selon la vitesse.
-UI.SPEEDS = { 1: 2600, 2: 1300, 4: 480 };
+// Durée d'une possession à l'écran (ms) selon la vitesse : assez longue pour voir la remontée, la mise en place et la défense.
+UI.SPEEDS = { 1: 4600, 2: 2400, 4: 1000 };
+// En mode « Temps forts », les possessions ordinaires défilent en accéléré.
+UI.SKIP_MS = 320;
+UI.viewMode = function () { return UI.store.get('hoops_view') === 'key' ? 'key' : 'all'; };
 
 UI.schedule = function (delay) {
   var L = UI.live;
@@ -178,23 +189,35 @@ UI.schedule = function (delay) {
   L.timer = setTimeout(UI.tickMatch, delay === undefined ? 120 : delay);
 };
 
+// Une possession mérite d'être jouée en entier en mode « Temps forts » ?
+UI.isKeyPlay = function (m, play, evs, before) {
+  if (!play) return false;
+  if (evs.some(function (e) { return e.type === 'quarter' || e.type === 'momentum' || e.type === 'hot' || e.type === 'injury' || e.type === 'final'; })) return true;
+  if (play.firstOption || play.blocker || play.alleyOop || play.dunk || play.stealer) return true;
+  if (play.kind === 'shot' && play.made && play.type === 'three') return true;
+  var lead0 = before[0] - before[1], lead1 = m.score[0] - m.score[1];
+  if (lead0 * lead1 <= 0 && lead0 !== lead1) return true; // changement de leader ou égalisation
+  return m.q >= 4 && m.clock <= 120 && Math.abs(lead1) <= 6;
+};
+
 // Joue une possession : la vue 2D l'anime, le score et le commentaire tombent quand le ballon arrive.
 UI.tickMatch = function () {
   var L = UI.live;
   if (!L || !L.playing) return;
-  var T = UI.SPEEDS[L.speed];
   var before = L.m.score.slice();
   var evs = L.m.step(), play = L.m.play;
-  if (L.court) L.court.animate(play, T * 0.94);
-  var impact = play && play.kind === 'shot' ? 0.8 : 0.55;
+  var key = UI.viewMode() === 'all' || UI.isKeyPlay(L.m, play, evs, before);
+  var T = key ? UI.SPEEDS[L.speed] : UI.SKIP_MS;
+  if (L.court) L.court.animate(play, T * 0.96, !key);
+  var impact = !key ? 0.9 : play && play.kind === 'shot' ? 0.82 : 0.6;
   L.pending = { evs: evs, before: before };
   L.timer = setTimeout(function () {
     UI.flushPending();
     if (L.m.finished) { L.timer = setTimeout(UI.finishMatch, 900); return; }
-    if (L.m.halftimePending && L.m.career) { L.m.resumeAfterHalftime(); UI.toast('Mi-temps : ' + L.m.score[0] + '-' + L.m.score[1] + '. Retour au vestiaire, puis sur le parquet.'); }
+    if (L.m.halftimePending && L.m.career) { L.m.resumeAfterHalftime(); UI.toast('Mi-temps : ' + L.m.score[0] + '-' + L.m.score[1] + '.'); }
     if (L.m.halftimePending) { L.playing = false; UI.renderControls(); UI.openPanel('talk'); return; }
     if (L.m.pendingMoment) { L.playing = false; UI.renderControls(); UI.openPanel('moment'); if (BM.Juice) { BM.Juice.sound('cheer'); BM.Juice.haptic('heavy'); } return; }
-    if (L.panel === 'subs') UI.renderPanel();
+    if (L.pick) UI.renderPane();
     if (L.playing) L.timer = setTimeout(UI.tickMatch, T * (1 - impact));
   }, T * impact);
 };
@@ -207,7 +230,7 @@ UI.flushPending = function () {
   UI.pushEvents(p.evs);
   var bump = [L.m.score[0] > p.before[0], L.m.score[1] > p.before[1]];
   UI.renderScore(bump);
-  if (L.viewTab && L.viewTab !== 'feed') UI.renderLiveTab();
+  if (!L.pick && L.paneTab !== 'feed') UI.renderPane();
   if (p.evs.some(function (e) { return e.type === 'quarter'; })) { BM.Juice.sound('buzzer'); BM.Juice.haptic('medium'); }
   if (p.evs.some(function (e) { return e.type === 'momentum' || e.type === 'hot'; })) { BM.Juice.sound('cheer'); BM.Juice.haptic('medium'); }
   var u = L.m.user;
@@ -221,66 +244,22 @@ UI.clockLabel = function (q, clock) {
 
 UI.renderMatch = function () {
   var L = UI.live, m = L.m;
-  L.viewTab = L.viewTab || 'feed';
+  L.paneTab = L.paneTab || 'feed';
+  L.pick = null;
   document.getElementById('modal-root').innerHTML =
-    '<div class="match"><div class="inner">' +
+    '<div class="match" style="--c0:' + m.side[0].color + ';--c1:' + m.side[1].color + '">' +
     '<div class="scoreboard" id="m-score"></div>' +
-    '<div class="court-wrap"><canvas id="m-court" aria-label="Vue 2D du terrain"></canvas></div>' +
-    '<div class="live-right">' +
-    '<div class="subtabs live-tabs" id="m-vtabs">' +
-    '<button data-act="mViewTab" data-v="feed" class="' + (L.viewTab === 'feed' ? 'on' : '') + '">Direct</button>' +
-    '<button data-act="mViewTab" data-v="on5" class="' + (L.viewTab === 'on5' ? 'on' : '') + '">5 sur le parquet</button>' +
-    '<button data-act="mViewTab" data-v="chart" class="' + (L.viewTab === 'chart' ? 'on' : '') + '">Tirs & Flux</button>' +
-    '</div>' +
-    '<div class="feed" id="m-feed" style="' + (L.viewTab === 'feed' ? '' : 'display:none') + '"></div>' +
-    '<div class="feed live-aux" id="m-aux" style="' + (L.viewTab === 'feed' ? 'display:none' : '') + '"></div>' +
-    '</div>' +
-    '<div class="controls" id="m-ctrl"></div>' +
+    '<div class="m-body">' +
+    '<div class="m-left"><div class="court-wrap"><canvas id="m-court" aria-label="Vue 2D du terrain"></canvas></div><div class="m-bar" id="m-ctrl"></div></div>' +
+    '<div class="m-side"><div class="qi" id="m-qi"></div><div class="m-pane" id="m-pane"></div></div>' +
     '</div><div id="m-panel"></div></div>';
   L.court = new BM.Court(document.getElementById('m-court'), m);
+  L.feedHtml = '';
   UI.renderScore();
   UI.pushEvents(m.events);
-  UI.renderLiveTab();
   UI.renderControls();
-};
-
-UI.actions.mViewTab = function (el) {
-  var L = UI.live;
-  if (!L) return;
-  L.viewTab = el.dataset.v;
-  var tabs = document.getElementById('m-vtabs');
-  if (tabs) Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (b) { b.classList.toggle('on', b.dataset.v === L.viewTab); });
-  var feed = document.getElementById('m-feed'), aux = document.getElementById('m-aux');
-  if (feed && aux) {
-    feed.style.display = L.viewTab === 'feed' ? '' : 'none';
-    aux.style.display = L.viewTab === 'feed' ? 'none' : '';
-  }
-  UI.renderLiveTab();
-};
-
-UI.renderLiveTab = function () {
-  var L = UI.live, aux = document.getElementById('m-aux');
-  if (!L || !aux || L.viewTab === 'feed') return;
-  var m = L.m, u = m.user >= 0 ? m.user : 0;
-  if (L.viewTab === 'on5') {
-    var fiveHtml = function (side) {
-      var t = m.side[side];
-      return '<div style="margin-bottom:8px"><div class="small muted" style="font-weight:700;margin-bottom:4px">' + UI.teamBadge(t) + UI.esc(t.name) + '</div>' +
-        m.on[side].map(function (id) {
-          var p = m.p(id), b = m.box[id], en = Math.round(m.en[id]);
-          var hot = m.isHot(id) ? ' <span class="tag fire">🔥</span>' : '';
-          var fl = b.pf >= 4 ? ' <span class="tag bad">' + b.pf + 'F</span>' : b.pf === 3 ? ' <span class="tag warn">3F</span>' : '';
-          return '<div class="live-p-row"><span class="pos">' + p.pos + '</span>' +
-            '<span class="nm">' + UI.esc(BM.shortName(p)) + hot + fl + '</span>' +
-            '<span class="num small">' + b.pts + 'p · ' + (b.oreb + b.dreb) + 'r · ' + b.ast + 'a</span>' +
-            UI.bar(en) + '</div>';
-        }).join('') + '</div>';
-    };
-    aux.innerHTML = fiveHtml(u) + fiveHtml(1 - u);
-  } else if (L.viewTab === 'chart') {
-    aux.innerHTML = UI.shotChartSvg(m.shots, m.side[0], m.side[1]) +
-      UI.gameFlowSvg(m.flow, m.side[0], m.side[1], { biggestLead: m.biggestLead, leadChanges: m.leadChanges, ties: m.ties });
-  }
+  // Le panneau latéral vient d'être rempli : on recale la taille du terrain sur la place réellement disponible.
+  requestAnimationFrame(function () { if (L.court) L.court.resize(); });
 };
 
 UI.renderScore = function (bump) {
@@ -293,74 +272,179 @@ UI.renderScore = function (bump) {
     for (var k = 0; k < 4; k++) dots += '<span class="to-pip' + (k < n ? ' on' : '') + '"></span>';
     return '<span class="to-pips" title="Temps morts restants : ' + n + '">' + dots + '</span>';
   };
-  var bonusTag = function (i) {
-    return m.teamFouls[i] >= 4 ? ' <span class="bonus-pill">BONUS</span>' : '';
-  };
-  var qStrip = '';
-  if (m.quarterBreakdown) {
-    var qb = m.quarterBreakdown();
-    qStrip = '<div class="q-strip">' + qb.map(function (q, idx) {
-      return '<span><b>' + (idx < 4 ? 'Q' + (idx + 1) : 'P' + (idx - 3)) + '</b> ' + q[0] + '-' + q[1] + '</span>';
-    }).join('') + '</div>';
-  }
+  var bonus = function (i) { return m.teamFouls[1 - i] >= 4 ? '<span class="bonus-pill">BONUS</span>' : ''; };
+  var toast = el.querySelector('.sb-toast');
   el.innerHTML = '<div class="sb">' +
-    '<div class="t">' + UI.teamBadge(t[0], true) + '<div class="t-meta"><span>' + UI.esc(t[0].short) + bonusTag(1) + '</span>' + toDots(0) + '</div></div>' +
-    '<div class="sb-center"><div class="score">' + sc(0) + ' <span class="sep">–</span> ' + sc(1) + '</div>' +
-    '<div class="clock">' + (m.finished ? '<b>TERMINÉ</b>' : '<b>' + UI.clockLabel(m.q, Math.max(0, Math.round(m.clock))) + '</b>') +
-    ' · Fautes ' + m.teamFouls[0] + '–' + m.teamFouls[1] + '</div>' + qStrip + '</div>' +
-    '<div class="t away"><div class="t-meta" style="align-items:flex-end"><span>' + bonusTag(0) + UI.esc(t[1].short) + '</span>' + toDots(1) + '</div>' + UI.teamBadge(t[1], true) + '</div></div>' +
+    '<div class="t">' + UI.teamBadge(t[0], true) + '<div class="t-meta"><span class="nm">' + UI.esc(t[0].short) + ' <span class="small muted hide-sm">' + UI.esc(t[0].nick) + '</span>' + bonus(0) + '</span>' + toDots(0) + '</div></div>' +
+    '<div class="score h">' + sc(0) + '</div>' +
+    '<div class="clock"><b>' + (m.finished ? 'FIN' : UI.clockLabel(m.q, Math.max(0, Math.round(m.clock)))) + '</b><span>Fautes ' + m.teamFouls[0] + '–' + m.teamFouls[1] + '</span></div>' +
+    '<div class="score a">' + sc(1) + '</div>' +
+    '<div class="t away"><div class="t-meta" style="align-items:flex-end"><span class="nm">' + bonus(1) + '<span class="small muted hide-sm">' + UI.esc(t[1].nick) + '</span> ' + UI.esc(t[1].short) + '</span>' + toDots(1) + '</div>' + UI.teamBadge(t[1], true) + '</div></div>' +
     UI.momentumBar(m);
+  if (toast) el.appendChild(toast);
 };
 
-// Jauge de momentum : chaque équipe pousse depuis son côté, éclat quand elle dépasse 80.
+// Jauge de momentum : fine bande sous le scorebug, chaque équipe pousse depuis son côté.
 UI.momentumBar = function (m) {
   var a = m.mom[0], b = m.mom[1], tot = Math.max(1, a + b), share = a / tot * 100;
-  var glow = function (v) { return v >= 80 ? ' hot' : ''; };
-  return '<div class="mom" title="Momentum"><span class="mom-l' + glow(a) + '" style="width:' + share.toFixed(1) + '%;background:' + m.side[0].color + '"></span>' +
-    '<span class="mom-r' + glow(b) + '" style="width:' + (100 - share).toFixed(1) + '%;background:' + m.side[1].color + '"></span>' +
-    '<em>MOMENTUM</em></div>';
+  return '<div class="mom" title="Momentum"><span style="width:' + share.toFixed(1) + '%;background:' + m.side[0].color + '"></span>' +
+    '<span style="width:' + (100 - share).toFixed(1) + '%;background:' + m.side[1].color + '"></span></div>';
+};
+
+// Confirmation d'une consigne, affichée sous le scorebug sans bloquer le jeu.
+UI.sbToast = function (msg) {
+  var el = document.getElementById('m-score');
+  if (!el) return;
+  var old = el.querySelector('.sb-toast');
+  if (old) old.remove();
+  var t = document.createElement('div');
+  t.className = 'sb-toast';
+  t.textContent = msg;
+  el.appendChild(t);
+  clearTimeout(UI.sbTimer);
+  UI.sbTimer = setTimeout(function () { t.remove(); }, 2200);
+};
+
+UI.evHtml = function (e) {
+  var m = UI.live.m, color = e.side >= 0 ? m.side[e.side].color : 'transparent';
+  if (e.type === 'quarter' || e.type === 'final') return '<div class="ev ' + e.type + '">' + UI.esc(e.text) + '</div>';
+  return '<div class="ev ' + e.type + '"><span class="tm"><i class="side" style="background:' + color + '"></i>' + UI.clockLabel(e.q, e.clock) + '</span>' +
+    '<span class="tx">' + UI.esc(e.text) + '</span><span class="sc">' + e.score[0] + '-' + e.score[1] + '</span></div>';
 };
 
 UI.pushEvents = function (evs) {
+  var L = UI.live;
+  if (!L || !evs.length) return;
+  var html = '';
+  evs.forEach(function (e) { html = UI.evHtml(e) + html; });
+  L.feedHtml = (html + (L.feedHtml || '')).slice(0, 60000);
   var feed = document.getElementById('m-feed');
-  if (!feed || !evs.length) return;
-  var m = UI.live.m, html = '';
-  evs.forEach(function (e) {
-    var color = e.side >= 0 ? m.side[e.side].color : 'transparent';
-    if (e.type === 'quarter' || e.type === 'final') html = '<div class="ev ' + e.type + '">' + UI.esc(e.text) + '</div>' + html;
-    else html = '<div class="ev ' + e.type + '"><span class="tm"><i class="side" style="display:inline-block;height:10px;margin-right:6px;background:' + color + '"></i>' + UI.clockLabel(e.q, e.clock) + '</span>' +
-      '<span class="tx">' + UI.esc(e.text) + '</span><span class="sc">' + e.score[0] + '-' + e.score[1] + '</span></div>' + html;
-  });
-  feed.insertAdjacentHTML('afterbegin', html);
+  if (feed) feed.insertAdjacentHTML('afterbegin', html);
+  var last = evs[evs.length - 1], tk = document.getElementById('m-ticker');
+  if (tk && last && last.type !== 'quarter') tk.innerHTML = '<b>' + UI.clockLabel(last.q, last.clock) + '</b> · ' + UI.esc(last.text);
 };
 
+// Barre sous le terrain : lecture, vitesse, mode de visionnage, fin simulée, dernière action.
 UI.renderControls = function () {
-  var L = UI.live, m = L.m, u = m.user;
+  var L = UI.live, m = L.m;
   var el = document.getElementById('m-ctrl');
   if (!el) return;
-  if (m.career) {
-    // Mode carrière : pas de consignes de coach, mais ta mentalité sur le terrain.
-    el.innerHTML = '<div class="btn-row" style="flex-wrap:nowrap">' +
-      '<button class="btn" data-act="mPlay" style="flex:none;width:84px">' + (L.playing ? '⏸ Pause' : '▶ Jouer') + '</button>' +
-      '<div class="seg" style="flex:1">' + [1, 2, 4].map(function (s) { return '<button data-act="mSpeed" data-v="' + s + '" class="' + (L.speed === s ? 'on' : '') + '">x' + s + '</button>'; }).join('') + '</div>' +
-      '<button class="btn" data-act="mSimEnd" title="Simuler la fin du match" style="flex:none;width:44px">⏭</button></div>' +
-      '<div class="seg cment">' + Object.keys(BM.CAREER_MENT).map(function (k) {
-        return '<button data-act="mCMent" data-v="' + k + '" class="' + (m.career.ment === k ? 'on' : '') + '">' + BM.CAREER_MENT[k].l + '</button>';
-      }).join('') + '</div>';
-    return;
-  }
-  el.innerHTML = '<div class="btn-row" style="flex-wrap:nowrap">' +
-    '<button class="btn" data-act="mPlay" style="flex:none;width:84px">' + (L.playing ? '⏸ Pause' : '▶ Jouer') + '</button>' +
-    '<div class="seg" style="flex:1">' + [1, 2, 4].map(function (s) {
+  var mode = UI.viewMode();
+  el.innerHTML = '<button class="icon-btn" data-act="mPlay" aria-label="' + (L.playing ? 'Pause' : 'Lecture') + '">' + UI.icon(L.playing ? 'pause' : 'play') + '</button>' +
+    '<div class="seg" role="group" aria-label="Vitesse">' + [1, 2, 4].map(function (s) {
       return '<button data-act="mSpeed" data-v="' + s + '" class="' + (L.speed === s ? 'on' : '') + '">x' + s + '</button>';
     }).join('') + '</div>' +
-    '<button class="btn" data-act="mSimEnd" title="Simuler la fin du match" style="flex:none;width:44px">⏭</button></div>' +
-    '<div class="btn-row" style="flex-wrap:nowrap">' +
-    '<button class="btn" style="flex:1" data-act="mTimeout"' + (m.timeouts[u] > 0 ? '' : ' disabled') + '>T. mort (' + m.timeouts[u] + ')</button>' +
-    '<button class="btn" style="flex:1" data-act="mPanel" data-v="subs">Changer</button>' +
-    '<button class="btn" style="flex:1" data-act="mPanel" data-v="tactic">Tactique</button>' +
-    '<button class="btn' + (m.firstOpt[u] ? ' primary' : '') + '" style="flex:1.2" data-act="mPanel" data-v="option">★ ' +
-    (m.firstOpt[u] ? UI.esc(m.p(m.firstOpt[u]).last) : '1re option') + '</button></div>';
+    '<div class="seg" role="group" aria-label="Visionnage"><button data-act="mView" data-v="all" class="' + (mode === 'all' ? 'on' : '') + '">Tout voir</button>' +
+    '<button data-act="mView" data-v="key" class="' + (mode === 'key' ? 'on' : '') + '">Temps forts</button></div>' +
+    '<span class="ticker" id="m-ticker"></span>' +
+    '<button class="icon-btn" data-act="mSimEnd" title="Simuler la fin du match" aria-label="Simuler la fin du match">' + UI.icon('skip') + '</button>';
+  var last = m.events[m.events.length - 1];
+  if (last) document.getElementById('m-ticker').innerHTML = '<b>' + UI.clockLabel(last.q, last.clock) + '</b> · ' + UI.esc(last.text);
+  UI.renderQuick();
+  UI.renderPane();
+};
+
+// Consignes rapides : toujours visibles, une touche ouvre le choix dans le panneau, sans quitter le terrain.
+UI.renderQuick = function () {
+  var L = UI.live, m = L.m, u = m.user, el = document.getElementById('m-qi');
+  if (!el) return;
+  var chip = function (k, lab, val, dis) {
+    return '<button data-act="mPick" data-v="' + k + '" class="' + (L.pick === k ? 'on' : '') + '"' + (dis ? ' disabled' : '') + '><span>' + lab + '</span><b>' + val + '</b></button>';
+  };
+  if (m.career) {
+    el.innerHTML = Object.keys(BM.CAREER_MENT).map(function (k) {
+      return '<button data-act="mCMent" data-v="' + k + '" class="' + (m.career.ment === k ? 'on' : '') + '"><span>Mentalité</span><b>' + UI.esc(BM.CAREER_MENT[k].l) + '</b></button>';
+    }).join('');
+    return;
+  }
+  var t = m.tac[u], O = BM.TACTIC_OPTIONS;
+  var short = function (f) { var o = O[f].find(function (x) { return x.v === t[f]; }); return o ? UI.esc(o.s || o.l) : '-'; };
+  el.innerHTML =
+    chip('system', 'Système', short('system')) +
+    chip('option', '1re option', m.firstOpt[u] ? UI.esc(m.p(m.firstOpt[u]).last) : 'Collectif') +
+    chip('pace', 'Rythme', short('pace')) +
+    chip('defense', 'Défense', short('defense')) +
+    chip('subs', 'Changements', m.auto[u] ? 'Auto' : 'Manuel') +
+    chip('timeout', 'Temps mort', m.timeouts[u] + ' restant' + (m.timeouts[u] > 1 ? 's' : ''), m.timeouts[u] <= 0);
+};
+
+UI.renderPane = function () {
+  var L = UI.live, m = L.m, u = m.user, el = document.getElementById('m-pane');
+  if (!el) return;
+  if (!L.pick) {
+    var tabs = '<div class="tabs" role="tablist">' + [['feed', 'Direct'], ['on5', 'Sur le terrain'], ['chart', 'Tirs & écart']].map(function (x) {
+      return '<button role="tab" data-act="mPaneTab" data-v="' + x[0] + '" class="' + (L.paneTab === x[0] ? 'on' : '') + '">' + x[1] + '</button>';
+    }).join('') + '</div>';
+    var body = '';
+    if (L.paneTab === 'feed') body = '<div class="feed" id="m-feed">' + (L.feedHtml || '') + '</div>';
+    else if (L.paneTab === 'on5') {
+      var five = function (side) {
+        var t = m.side[side];
+        return '<div class="pick"><div class="pick-h"><h3>' + UI.esc(t.name) + '</h3></div>' + m.on[side].map(function (id) {
+          var p = m.p(id), b = m.box[id], en = Math.round(m.en[id]);
+          var tags = (m.isHot(id) ? '<span class="tag fire">En feu</span>' : '') + (b.pf >= 4 ? '<span class="tag bad">' + b.pf + ' f.</span>' : b.pf === 3 ? '<span class="tag warn">3 f.</span>' : '');
+          return '<div class="live-p-row"><span class="pos">' + p.pos + '</span><span>' + UI.esc(BM.shortName(p)) + tags + '</span>' +
+            '<span class="small muted">' + b.pts + ' pts · ' + (b.oreb + b.dreb) + ' reb · ' + b.ast + ' pd</span>' + UI.bar(en) + '</div>';
+        }).join('') + '</div>';
+      };
+      body = five(u >= 0 ? u : 0) + five(u >= 0 ? 1 - u : 1);
+    } else {
+      body = '<div class="pick">' + UI.shotChartSvg(m.shots, m.side[0], m.side[1]) +
+        UI.gameFlowSvg(m.flow, m.side[0], m.side[1], { biggestLead: m.biggestLead, leadChanges: m.leadChanges, ties: m.ties }) + '</div>';
+    }
+    el.innerHTML = tabs + body;
+    return;
+  }
+  var head = function (title) { return '<div class="pick-h"><h3>' + title + '</h3><button class="btn sm" data-act="mPick" data-v="">Fermer</button></div>'; };
+  var html = '';
+  if (L.pick === 'system' || L.pick === 'defense' || L.pick === 'pace') {
+    var t = m.tac[u];
+    html = head({ system: 'Système offensif', defense: 'Schéma défensif', pace: 'Rythme' }[L.pick]) +
+      BM.TACTIC_OPTIONS[L.pick].map(function (o) {
+        return '<button class="pick-opt' + (t[L.pick] === o.v ? ' on' : '') + '" data-act="mTactic" data-f="' + L.pick + '" data-v="' + o.v + '"><b>' + UI.esc(o.s || o.l) + '</b>' +
+          (t[L.pick] === o.v ? '<span class="tag good">Actif</span>' : '<span></span>') + '<small>' + UI.esc(o.d || '') + '</small></button>';
+      }).join('');
+  } else if (L.pick === 'option') {
+    var cur = m.firstOpt[u];
+    html = head('1re option offensive') +
+      '<p class="hint" style="margin:0 0 2px">Un joueur en feu avec un mismatch de +2 ou plus marque beaucoup plus.</p>' +
+      m.on[u].map(function (id) {
+        var p = m.p(id), mm = m.mismatch(u, id), vs = mm.vs ? m.p(mm.vs) : null, b = m.box[id];
+        var cls = mm.val >= 2 ? 'good' : mm.val <= -2 ? 'bad' : '';
+        return '<button class="pick-opt pl' + (cur === id ? ' on' : '') + '" data-act="mOption" data-id="' + id + '">' + BM.portrait(p, m.side[u], 28) +
+          '<b>' + UI.esc(BM.shortName(p)) + (m.isHot(id) ? ' <span class="tag fire">En feu</span>' : '') + '</b>' +
+          '<span class="tag ' + cls + '">' + (mm.val > 0 ? '+' : '') + mm.val + '</span>' +
+          '<small>' + b.pts + ' pts · face à ' + (vs ? UI.esc(BM.shortName(vs)) : '-') + ' · ' + (mm.kind === 'int' ? 'poste bas' : 'extérieur') + '</small></button>';
+      }).join('') +
+      '<button class="pick-opt' + (!cur ? ' on' : '') + '" data-act="mOption" data-id=""><b>Jeu collectif</b><span></span><small>Aucune option prioritaire : le ballon circule.</small></button>';
+  } else if (L.pick === 'subs') {
+    var onIds = m.on[u];
+    var row = function (p, onCourt) {
+      var b = m.box[p.id], en = Math.round(m.en[p.id]);
+      var tags = (m.out[p.id] ? '<span class="tag bad">' + (p.injury > 0 ? 'Blessé' : BM.FOUL_OUT + ' fautes') + '</span>' : '') + (b.pf >= 3 && !m.out[p.id] ? '<span class="tag warn">' + b.pf + ' f.</span>' : '') +
+        (m.isHot(p.id) ? '<span class="tag fire">En feu</span>' : '');
+      return '<div class="pl' + (L.sel === p.id ? ' sel' : '') + '" data-act="mSel" data-id="' + p.id + '" data-on="' + (onCourt ? 1 : 0) + '">' +
+        '<span class="pos">' + p.pos + '</span><span>' + UI.esc(BM.shortName(p)) + tags + '<br><span class="muted small">' + b.pts + ' pts · ' + Math.round(b.sec / 60) + ' min</span></span>' +
+        UI.bar(en) + '<b class="num small">' + en + '</b></div>';
+    };
+    html = head('Changements') +
+      '<label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-change="mAuto"' + (m.auto[u] ? ' checked' : '') + '> Rotations automatiques</label>' +
+      '<p class="hint" style="margin:0">' + (L.sel ? 'Touchez maintenant le joueur à échanger.' : 'Touchez un joueur sur le terrain puis un remplaçant.') + '</p>' +
+      '<div class="pick-h"><h3>Sur le terrain</h3></div><div class="court">' + onIds.map(function (id) { return row(m.p(id), true); }).join('') + '</div>' +
+      '<div class="pick-h"><h3>Banc</h3></div><div class="court">' + m.roster[u].filter(function (p) { return onIds.indexOf(p.id) < 0; }).map(function (p) { return row(p, false); }).join('') + '</div>';
+  }
+  el.innerHTML = '<div class="pick">' + html + '</div>';
+};
+
+UI.actions.mPaneTab = function (el) { UI.live.paneTab = el.dataset.v; UI.renderPane(); };
+
+UI.actions.mPick = function (el) {
+  var L = UI.live, k = el.dataset.v || null;
+  if (k === 'timeout') { UI.actions.mTimeout(); return; }
+  L.pick = L.pick === k ? null : k;
+  L.sel = null;
+  UI.renderQuick();
+  UI.renderPane();
 };
 
 UI.actions.mPlay = function () {
@@ -378,13 +462,22 @@ UI.actions.mSpeed = function (el) {
   UI.schedule();
 };
 
+UI.actions.mView = function (el) {
+  UI.store.set('hoops_view', el.dataset.v);
+  UI.renderControls();
+  UI.sbToast(el.dataset.v === 'key' ? 'Temps forts : seules les actions décisives sont jouées' : 'Tout voir : chaque possession est jouée');
+};
+
 UI.actions.mTimeout = function () {
   var L = UI.live;
   if (L.m.timeout(L.m.user)) {
     UI.pushEvents(L.m.events.slice(-1));
     L.playing = false;
+    clearTimeout(L.timer);
+    UI.flushPending();
+    L.pick = 'subs';
     UI.renderControls();
-    UI.openPanel('subs');
+    UI.sbToast('Temps mort : le jeu est arrêté, faites vos changements');
   }
 };
 
@@ -400,20 +493,17 @@ UI.actions.mSimEnd = function () {
   UI.finishMatch();
 };
 
-// ==================================================================== panneaux du match
+// ==================================================================== panneaux bloquants (mi-temps, moments de carrière)
 UI.openPanel = function (kind) {
   var L = UI.live;
   L.panel = kind;
-  if (kind !== 'talk' && kind !== 'moment' && L.playing) { L.playing = false; clearTimeout(L.timer); UI.flushPending(); UI.renderControls(); }
   UI.renderPanel();
 };
-
-UI.actions.mPanel = function (el) { UI.openPanel(el.dataset.v); };
 
 UI.actions.mClosePanel = function () {
   var L = UI.live;
   if (L.panel === 'talk' || L.panel === 'moment') return;
-  L.panel = null; L.sel = null;
+  L.panel = null;
   document.getElementById('m-panel').innerHTML = '';
 };
 
@@ -427,52 +517,12 @@ UI.renderPanel = function () {
     var diff = m.score[u] - m.score[1 - u];
     body = '<div class="modal-h"><h2>Causerie de mi-temps</h2></div>' +
       '<p style="margin:0">' + (diff > 0 ? 'Vous menez de ' + diff + ' point' + (diff > 1 ? 's' : '') + '.' : diff < 0 ? 'Vous êtes menés de ' + (-diff) + ' point' + (diff < -1 ? 's' : '') + '.' : 'Égalité parfaite.') + ' Que dites-vous au vestiaire ?</p>' +
-      '<div style="display:grid;gap:8px">' + BM.TEAM_TALKS.map(function (t) {
+      '<div style="display:grid;gap:6px">' + BM.TEAM_TALKS.map(function (t) {
         return '<button class="btn block" data-act="mTalk" data-v="' + t.v + '">' + t.l + '</button>';
       }).join('') + '</div>';
-  } else if (L.panel === 'option') {
-    var cur = m.firstOpt[u];
-    body = '<div class="modal-h"><h2>1re option offensive</h2><button class="btn sm x" data-act="mClosePanel">Fermer</button></div>' +
-      '<p class="hint" style="margin:0">Un joueur <b>en feu 🔥</b> avec un <b>mismatch favorable</b> (+2 ou plus) marque beaucoup plus. Le bonus ne vaut que si vous suivez le match.</p>' +
-      '<div class="court">' + m.on[u].map(function (id) {
-        var p = m.p(id), mm = m.mismatch(u, id), vs = mm.vs ? m.p(mm.vs) : null, hot = m.isHot(id), b = m.box[id];
-        var cls = mm.val >= 2 ? 'good' : mm.val <= -2 ? 'bad' : '';
-        return '<div class="pl opt' + (cur === id ? ' sel' : '') + '" data-act="mOption" data-id="' + id + '" style="cursor:pointer;grid-template-columns:40px 1fr auto">' +
-          BM.portrait(p, m.side[u], 36) +
-          '<span><b>' + UI.esc(BM.shortName(p)) + '</b>' + (hot ? ' <span class="tag fire">🔥 En feu</span>' : '') +
-          '<br><span class="muted small">' + b.pts + ' pts · vs ' + (vs ? UI.esc(BM.shortName(vs)) : '-') + ' · ' + (mm.kind === 'int' ? 'poste bas' : 'extérieur') + '</span></span>' +
-          '<span class="tag ' + cls + '" style="font-size:13px">' + (mm.val > 0 ? '+' : '') + mm.val + '</span></div>';
-      }).join('') + '</div>' +
-      '<button class="btn block" data-act="mOption" data-id="">Jeu collectif (aucune option)</button>';
-  } else if (L.panel === 'tactic') {
-    var t = m.tac[u], O = BM.TACTIC_OPTIONS;
-    var seg = function (f) {
-      return '<div class="field"><label>' + { pace: 'Rythme', system: 'Système', defense: 'Défense' }[f] + '</label><div class="seg' + (f === 'pace' ? '' : ' wrap') + '">' + O[f].map(function (o) {
-        return '<button data-act="mTactic" data-f="' + f + '" data-v="' + o.v + '" class="' + (t[f] === o.v ? 'on' : '') + '">' + o.l + '</button>';
-      }).join('') + '</div></div>';
-    };
-    body = '<div class="modal-h"><h2>Consignes</h2><button class="btn sm x" data-act="mClosePanel">Fermer</button></div>' + seg('pace') + seg('system') + seg('defense');
-  } else {
-    var row = function (p, onCourt) {
-      var b = m.box[p.id], en = Math.round(m.en[p.id]);
-      var sel = L.sel === p.id ? ' sel' : '';
-      var tags = (m.out[p.id] ? '<span class="tag bad">' + (p.injury > 0 ? 'Blessé' : BM.FOUL_OUT + ' fautes') + '</span>' : '') + (b.pf >= 3 && !m.out[p.id] ? '<span class="tag warn">' + b.pf + ' f.</span>' : '') +
-        (m.isHot(p.id) ? '<span class="tag fire">🔥</span>' : '');
-      return '<div class="pl' + sel + '" data-act="mSel" data-id="' + p.id + '" data-on="' + (onCourt ? 1 : 0) + '" style="cursor:pointer">' +
-        '<span class="pos">' + p.pos + '</span><span>' + UI.esc(BM.shortName(p)) + tags + ' <span class="muted small">' + b.pts + ' pts · ' + Math.round(b.sec / 60) + ' min</span></span>' +
-        UI.bar(en) + '<b class="num small">' + en + '</b></div>';
-    };
-    var onIds = m.on[u];
-    body = '<div class="modal-h"><h2>Changements</h2><button class="btn sm x" data-act="mClosePanel">Fermer</button></div>' +
-      '<label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-change="mAuto"' + (m.auto[u] ? ' checked' : '') + '> Rotations automatiques (selon le plan de minutes et la fatigue)</label>' +
-      '<p class="hint" style="margin:0">Touchez un joueur sur le terrain puis un remplaçant pour effectuer le changement.</p>' +
-      '<h3>Sur le terrain</h3><div class="court">' + onIds.map(function (id) { return row(m.p(id), true); }).join('') + '</div>' +
-      '<h3>Banc</h3><div class="court">' + m.roster[u].filter(function (p) { return onIds.indexOf(p.id) < 0; }).map(function (p) { return row(p, false); }).join('') + '</div>';
   }
-  el.innerHTML = '<div class="modal-bg"' + (L.panel === 'talk' || L.panel === 'moment' ? '' : ' data-act="mBg"') + '><div class="modal" role="dialog" aria-modal="true">' + body + '</div></div>';
+  el.innerHTML = '<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true">' + body + '</div></div>';
 };
-
-UI.actions.mBg = function (el, ev) { if (ev.target === el) UI.actions.mClosePanel(); };
 
 UI.actions.mTalk = function (el) {
   var L = UI.live, res = L.m.teamTalk(L.m.user, el.dataset.v);
@@ -491,36 +541,43 @@ UI.actions.mOption = function (el) {
   m.setFirstOption(m.user, id);
   UI.pushEvents(m.events.slice(-1));
   BM.Juice.haptic('medium');
-  L.panel = null;
-  document.getElementById('m-panel').innerHTML = '';
-  UI.renderControls();
-  UI.toast(id ? BM.shortName(m.p(id)) + ' devient la 1re option.' : 'Retour au jeu collectif.');
+  L.pick = null;
+  UI.renderQuick(); UI.renderPane();
+  UI.sbToast(id ? BM.shortName(m.p(id)) + ' en 1re option dès la prochaine possession' : 'Retour au jeu collectif');
 };
 
 UI.actions.mTactic = function (el) {
-  var L = UI.live;
-  if (L.m.setTactic) L.m.setTactic(L.m.user, el.dataset.f, el.dataset.v);
-  else L.m.tac[L.m.user][el.dataset.f] = el.dataset.v;
+  var L = UI.live, f = el.dataset.f, v = el.dataset.v;
+  if (L.m.setTactic) L.m.setTactic(L.m.user, f, v);
+  else L.m.tac[L.m.user][f] = v;
+  if (f === 'system' || f === 'defense') L.m.log('info', L.m.user, 'Consigne : ' + (BM.TACTIC_OPTIONS[f].find(function (o) { return o.v === v; }) || {}).l + '.');
   UI.pushEvents(L.m.events.slice(-1));
-  UI.renderPanel();
+  BM.Juice.haptic('light');
+  L.pick = null;
+  UI.renderQuick(); UI.renderPane();
+  var o = BM.TACTIC_OPTIONS[f].find(function (x) { return x.v === v; }) || {};
+  UI.sbToast((o.s || o.l) + ' : appliqué dès la prochaine possession');
 };
 
 UI.actions.mSel = function (el) {
   var L = UI.live, m = L.m, u = m.user, id = +el.dataset.id, onCourt = el.dataset.on === '1';
-  if (m.out[id] && !onCourt) { UI.toast('Ce joueur ne peut plus revenir en jeu.'); return; }
-  if (L.sel === null) { L.sel = id; UI.renderPanel(); return; }
+  if (m.out[id] && !onCourt) { UI.sbToast('Ce joueur ne peut plus revenir en jeu'); return; }
+  if (L.sel === null || L.sel === undefined) { L.sel = id; UI.renderPane(); return; }
   var selOn = m.on[u].indexOf(L.sel) >= 0;
   if (selOn !== onCourt) {
     var outId = onCourt ? id : L.sel, inId = onCourt ? L.sel : id;
-    if (m.substitute(u, outId, inId)) UI.pushEvents(m.events.slice(-1));
+    if (m.substitute(u, outId, inId)) {
+      UI.pushEvents(m.events.slice(-1));
+      UI.sbToast(BM.shortName(m.p(inId)) + ' entre pour ' + BM.shortName(m.p(outId)));
+    }
     L.sel = null;
   } else {
     L.sel = L.sel === id ? null : id;
   }
-  UI.renderPanel();
+  UI.renderPane();
 };
 
-UI.changes.mAuto = function (el) { UI.live.m.auto[UI.live.m.user] = el.checked; };
+UI.changes.mAuto = function (el) { UI.live.m.auto[UI.live.m.user] = el.checked; UI.renderQuick(); };
 
 // ==================================================================== fin de match
 UI.finishMatch = function () {
@@ -536,17 +593,17 @@ UI.finishMatch = function () {
   UI.modalLocked = true;
   BM.Juice.sound(won ? 'win' : 'lose');
   BM.Juice.haptic(won ? 'heavy' : 'medium');
-  if (won) setTimeout(function () { BM.Juice.confetti([g.teams[g.userTeam].color, '#ffd43b', '#ffffff', '#ff7a1a']); }, 250);
-  UI.modal('<div class="result-banner"><h2 class="' + (won ? 'win' : 'loss') + '">' + (won ? 'Victoire' : 'Défaite') + '</h2></div>' +
-    '<div class="card"><div class="sb"><div class="t">' + UI.teamBadge(m.side[0], true) + UI.esc(m.side[0].short) + '</div>' +
-    '<div class="score">' + m.score[0] + ' – ' + m.score[1] + '</div><div class="t away">' + UI.esc(m.side[1].short) + UI.teamBadge(m.side[1], true) + '</div></div>' +
+  if (won) setTimeout(function () { BM.Juice.confetti([g.teams[g.userTeam].color, '#f2c94c', '#ffffff']); }, 250);
+  UI.modal('<div class="modal-h"><div class="result-banner"><h2 class="' + (won ? 'win' : 'loss') + '">' + (won ? 'Victoire' : 'Défaite') + '</h2></div>' +
+    '<button class="btn primary" style="margin-left:auto" data-act="afterMatch">Continuer' + UI.icon('next', 'ico sm') + '</button></div>' +
+    '<div class="card wide"><div class="vs"><div class="t">' + UI.teamBadge(m.side[0]) + UI.esc(m.side[0].name) + '</div>' +
+    '<div class="mid" style="color:var(--text);font-size:26px">' + m.score[0] + ' – ' + m.score[1] + '</div><div class="t">' + UI.teamBadge(m.side[1]) + UI.esc(m.side[1].name) + '</div></div>' +
     UI.quarterTable(fx.qPts, m.side[0], m.side[1], m.score[0], m.score[1]) +
-    (mvp ? '<div class="mvp-line">' + BM.portrait(mvp, g.teams[mvp.teamId], 48) + '<p class="small" style="margin:0">Homme du match · <b>Note ' + m.ratings[mvp.id].toFixed(1) + '</b><br><b>' + UI.esc(BM.fullName(mvp)) + '</b>' +
+    (mvp ? '<div class="mvp-line">' + BM.portrait(mvp, g.teams[mvp.teamId], 44) + '<p class="small" style="margin:0">Homme du match · <b>note ' + m.ratings[mvp.id].toFixed(1) + '</b><br><b>' + UI.esc(BM.fullName(mvp)) + '</b>' +
       (mvpBox ? ' · <span class="muted">' + mvpBox.pts + ' pts, ' + (mvpBox.oreb + mvpBox.dreb) + ' reb, ' + mvpBox.ast + ' pd</span>' : '') + '</p></div>' : '') + '</div>' +
     UI.whyCard(fx.why) +
     UI.matchAnalyticsCard(fx, m.side[0], m.side[1]) +
-    UI.boxTable(g, fx.box, 0, m.side[0]) + UI.boxTable(g, fx.box, 1, m.side[1]) +
-    '<button class="btn primary block" data-act="afterMatch">Continuer</button>');
+    UI.boxTable(g, fx.box, 0, m.side[0]) + UI.boxTable(g, fx.box, 1, m.side[1]));
 };
 
 UI.actions.afterMatch = function () {

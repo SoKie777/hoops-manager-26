@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "roboto",
+        "createdAt": "2026-10-25T10:59:26.218Z",
+        "reason": "Direction contract (canon, user chose category standard 2026-10-25): Operate surface, Roboto is the Android system face and the genre's workhorse; distinctiveness is not the goal here"
+      }
+    ]
+  }
+}

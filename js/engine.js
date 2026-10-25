@@ -423,7 +423,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     var action = fast ? 'transition' : putback ? 'putback' : sysKey === 'iso' ? 'iso' : sysKey === 'post' ? 'post' : sysKey === 'motion' ? 'motion' : sysKey === 'princeton' ? 'cut' : 'pnr';
     var bigsO = O.filter(function (p) { return p.pos === 'PIV' || p.pos === 'AF'; });
     var screener = bigsO.length ? bigsO[0].id : (O[O.length - 1] ? O[O.length - 1].id : null);
-    this.play = { o: o, q: this.q, dur: dur, fast: fast, putback: putback, action: action, screener: screener, on: [this.on[0].slice(), this.on[1].slice()], kind: 'none' };
+    this.play = { o: o, q: this.q, dur: dur, fast: fast, putback: putback, action: action, screener: screener, system: sysKey, scheme: sch, heave: heave, hack: hackFoul, on: [this.on[0].slice(), this.on[1].slice()], kind: 'none' };
     this.tick(dur);
     if (this.q >= 4) {
       this.q4n++;

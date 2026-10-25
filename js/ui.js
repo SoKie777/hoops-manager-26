@@ -34,9 +34,17 @@ UI.save = function () {
   if (!UI.store.set(BM.SAVE_KEY, BM.serialize(UI.g))) UI.toast('Sauvegarde locale impossible : utilisez l\'export.');
 };
 
+// Échelle des notes : rouge (faible) → ambre → bleu-vert → vert (élite), lisible avec du texte blanc.
 UI.ovrColor = function (v) {
-  var h = BM.clamp((v - 35) / 50, 0, 1) * 130;
-  return 'hsl(' + Math.round(h) + ' 55% 40%)';
+  return v >= 85 ? '#1f9d55' : v >= 78 ? '#2f8f6f' : v >= 70 ? '#2f7d95' : v >= 62 ? '#4a6488' : v >= 55 ? '#a8701b' : '#b63a3f';
+};
+// Couleur de texte lisible sur une couleur de club (blanc ou bleu nuit selon la luminance).
+UI.inkOn = function (hex) {
+  var m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return '#ffffff';
+  var n = parseInt(m[1], 16), lin = function (c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  var L = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L > 0.4 ? '#0d1b2a' : '#ffffff';
 };
 UI.ovrBadge = function (v) { return '<span class="ovr" style="background:' + UI.ovrColor(v) + '">' + v + '</span>'; };
 UI.attrClass = function (v) { return v >= 15 ? 'a-hi' : v <= 7 ? 'a-lo' : 'a-mid'; };
@@ -67,10 +75,32 @@ var ICONS = {
   tactics: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.5"/>',
   comp: '<path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/>',
   market: '<path d="M4 7h16l-1.5 11a2 2 0 0 1-2 1.7h-9a2 2 0 0 1-2-1.7z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
-  club: '<path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/>'
+  club: '<path d="M4 20V9l8-5 8 5v11"/><path d="M9 20v-6h6v6"/>',
+  ff: '<path d="M4 6l7 6-7 6zM13 6l7 6-7 6z"/>',
+  next: '<path d="M9 6l6 6-6 6"/>',
+  play: '<path d="M7 5l12 7-12 7z"/>',
+  pause: '<path d="M8 5v14M16 5v14"/>',
+  skip: '<path d="M5 6l9 6-9 6zM18 6v12"/>',
+  ball: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18M5.6 5.6c3.5 3.5 3.5 9.3 0 12.8M18.4 5.6c-3.5 3.5-3.5 9.3 0 12.8"/>',
+  board: '<path d="M3 21h18M5 21V10M19 21V10M9 21v-7M15 21v-7M2 10l10-6 10 6z"/>',
+  medical: '<path d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/>',
+  transfer: '<path d="M4 8h14l-3-3M20 16H6l3 3"/>',
+  finance: '<path d="M12 3v18M16.5 7.5C16 6 14.3 5 12 5c-2.6 0-4.5 1.3-4.5 3.2 0 4.6 9 2.6 9 7.4 0 1.9-2 3.4-4.5 3.4-2.4 0-4.2-1-4.8-2.6"/>',
+  info: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3.5 6l8.5 7 8.5-7"/>',
+  dev: '<path d="M4 18l6-6 4 4 6-8"/><path d="M15 8h5v5"/>',
+  scout: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>',
+  media: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>',
+  dyn: '<circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2.5 19c.5-3 2.7-4.5 5.5-4.5s5 1.5 5.5 4.5M13.5 15c.8-.4 1.6-.5 2.5-.5 2.8 0 5 1.5 5.5 4.5"/>',
+  trophy: '<path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/>',
+  star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  flame: '<path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.4 2.4-5.4 3.8-8.3.7 1.7 1.6 2.7 2.7 3.2.2-2.5 1.2-4.9 3.4-6.7-.2 3.6 3.1 6 3.1 10.6 0 4.2-2.7 7.4-6.5 7.4z"/>',
+  swap: '<path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  bolt: '<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>',
+  clip: '<rect x="5" y="4" width="14" height="17" rx="1.5"/><path d="M9 4V3h6v1M8.5 10h7M8.5 14h7M8.5 18h4"/>'
 };
-UI.icon = function (k) {
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[k] + '</svg>';
+UI.icon = function (k, cls) {
+  return '<svg' + (cls ? ' class="' + cls + '"' : '') + ' viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[k] || '') + '</svg>';
 };
 
 // ==================================================================== rendu principal
@@ -87,18 +117,21 @@ UI.render = function () {
   var unread = g.inbox.some(function (m) { return !m.read; });
   var tabs = [['home', 'Accueil'], ['squad', 'Effectif'], ['tactics', 'Tactique'], ['comp', 'Ligue'], ['market', 'Mercato'], ['club', 'Club']];
   var body = UI['tab_' + UI.tab]();
+  var confPos = BM.standings(g, me.conf).indexOf(me) + 1;
   app.innerHTML =
-    '<div class="app" style="--team:' + me.color + '">' +
+    '<div class="app" style="--team:' + me.color + ';--team-ink:' + UI.inkOn(me.color) + '">' +
     '<header class="topbar">' + UI.teamBadge(me) +
     '<div class="who"><b>' + UI.esc(me.name) + '</b><span>' + UI.esc(BM.dateLabel(g)) + ' · Saison ' + g.season + '</span></div>' +
-    '<button class="btn sm" data-act="fastForward" title="Avancer jusqu\'au prochain événement">▶▶</button>' +
-    '<button class="btn primary' + (matchToday ? ' pulse' : '') + '" data-act="continue">' + (matchToday ? 'Match !' : 'Continuer') + '</button>' +
+    '<div class="facts hide-sm"><span><b>' + me.record.w + '-' + me.record.l + '</b> · ' + confPos + '<sup>e</sup> ' + UI.esc(BM.CONFERENCES[me.conf]) + '</span>' +
+    '<span>Masse <b>' + BM.money(BM.payroll(g, me)) + '</b></span></div>' +
+    '<button class="btn sm ghost" data-act="fastForward" title="Avancer jusqu\'au prochain événement" aria-label="Avancer jusqu\'au prochain événement">' + UI.icon('ff', 'ico sm') + '</button>' +
+    '<button class="btn go' + (matchToday ? ' matchday' : '') + '" data-act="continue">' + (matchToday ? 'Jour de match' : 'Continuer') + UI.icon('next', 'ico sm') + '</button>' +
     '</header>' +
-    '<main class="page' + (enter ? ' enter' : '') + '">' + body + '</main>' +
-    '<nav class="nav"><div class="nav-inner">' + tabs.map(function (t) {
+    '<nav class="nav" aria-label="Navigation principale"><div class="nav-inner">' + tabs.map(function (t) {
       var dot = t[0] === 'home' && unread ? ' class="dot"' : '';
-      return '<button data-act="tab" data-tab="' + t[0] + '" class="' + (UI.tab === t[0] ? 'on' : '') + '"><span' + dot + '>' + UI.icon(t[0]) + '</span>' + t[1] + '</button>';
+      return '<button data-act="tab" data-tab="' + t[0] + '" class="' + (UI.tab === t[0] ? 'on' : '') + '"' + (UI.tab === t[0] ? ' aria-current="page"' : '') + '><span' + dot + '>' + UI.icon(t[0]) + '</span>' + t[1] + '</button>';
     }).join('') + '</div></nav>' +
+    '<main class="main"><div class="page' + (enter ? ' enter' : '') + '">' + body + '</div></main>' +
     '</div>';
   UI.afterRender();
 };
@@ -108,8 +141,8 @@ UI.afterRender = function () {
 };
 
 UI.subTabs = function (key, items) {
-  return '<div class="tabs">' + items.map(function (it) {
-    return '<button data-act="subtab" data-key="' + key + '" data-v="' + it[0] + '" class="' + (UI.sub[key] === it[0] ? 'on' : '') + '">' + it[1] + '</button>';
+  return '<div class="tabs" role="tablist">' + items.map(function (it) {
+    return '<button role="tab" aria-selected="' + (UI.sub[key] === it[0]) + '" data-act="subtab" data-key="' + key + '" data-v="' + it[0] + '" class="' + (UI.sub[key] === it[0] ? 'on' : '') + '">' + it[1] + '</button>';
   }).join('') + '</div>';
 };
 
@@ -133,9 +166,8 @@ UI.previewTeams = function () {
 };
 
 UI.ballSvg = function () {
-  return '<svg class="ball" viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="bg1" cx="35%" cy="30%" r="75%">' +
-    '<stop offset="0" stop-color="#ffb066"/><stop offset="1" stop-color="#d9480f"/></radialGradient></defs>' +
-    '<circle cx="50" cy="50" r="46" fill="url(#bg1)"/><g fill="none" stroke="#3a1300" stroke-width="3.5" stroke-linecap="round">' +
+  return '<svg class="ball" viewBox="0 0 100 100" aria-hidden="true">' +
+    '<circle cx="50" cy="50" r="46" fill="#e8722c"/><g fill="none" stroke="#3a1300" stroke-width="3.5" stroke-linecap="round">' +
     '<path d="M4 50h92M50 4v92"/><path d="M18 17c14 14 14 52 0 66M82 17c-14 14-14 52 0 66"/></g></svg>';
 };
 
@@ -154,11 +186,11 @@ UI.startScreen = function () {
       }).join('') + '</div>';
   };
   var mode = UI.startMode || 'manager';
-  return '<div class="app" style="padding-bottom:24px">' +
-    '<div class="hero">' + UI.ballSvg() + '<h1>Hoops <span>Manager</span> 26</h1><p>Effectifs NBA réels 2026-27, version africaine.</p></div>' +
+  return '<div class="start">' +
+    '<div class="start-h">' + UI.ballSvg() + '<h1>Hoops Manager 26</h1><p>Effectifs NBA réels 2026-27, version africaine.</p></div>' +
     '<div class="page">' +
-    (hasSave ? '<div class="card"><div class="card-h"><h2>Reprendre</h2></div><button class="btn primary block" data-act="loadSave">Charger la partie sauvegardée</button></div>' : '') +
-    '<div class="card wide modepick"><button data-act="startMode" data-v="manager" class="' + (mode === 'manager' ? 'on' : '') + '"><b>Manager</b><span>Tu diriges une franchise : effectif, tactique, mercato, draft.</span></button>' +
+    (hasSave ? '<div class="card wide"><div class="card-h"><h2>Reprendre</h2></div><button class="btn primary block" data-act="loadSave">Charger la partie sauvegardée</button></div>' : '') +
+    '<div class="modepick"><button data-act="startMode" data-v="manager" class="' + (mode === 'manager' ? 'on' : '') + '"><b>Manager</b><span>Tu diriges une franchise : effectif, tactique, mercato, draft.</span></button>' +
     '<button data-act="startMode" data-v="career" class="' + (mode === 'career' ? 'on' : '') + '"><b>Ma Carrière</b><span>Tu es un joueur : de prospect de 19 ans à la retraite… puis coach.</span></button></div>' +
     (mode === 'career' ? UI.careerCreate() :
     '<div class="card" style="display:grid;gap:12px">' +
@@ -186,16 +218,19 @@ UI.tab_home = function () {
     var sh = topStar(h), sa = topStar(a);
     var label = next.type === 'playoff' ? BM.ROUND_NAMES[next.round] + ' · match ' + next.game : 'Journée ' + next.round;
     var today = next.day === g.day;
-    nextHtml = '<div class="card hero-card"><div class="card-h"><h2>' + (today ? '🔥 Jour de match' : 'Prochain match') + '</h2><span class="small muted">' + UI.esc(BM.dateLabel(g, next.day)) + ' · ' + label + '</span></div>' +
-      '<div class="vs"><div class="t">' + UI.teamBadge(h) + UI.esc(h.name) + '<span class="small muted">' + h.record.w + 'V-' + h.record.l + 'D · série ' + (h.record.streak || '-') + '</span></div>' +
+    var teamCol = function (t) {
+      return '<div class="t">' + UI.teamBadge(t) + UI.esc(t.name) + '<span class="small muted">' + t.record.w + 'V-' + t.record.l + 'D</span>' + UI.formPips(g, t) + '</div>';
+    };
+    nextHtml = '<div class="card' + (today ? ' hero-card' : '') + '"><div class="card-h"><h2>' + (today ? 'Jour de match' : 'Prochain match') + '</h2><span class="small muted">' + UI.esc(BM.dateLabel(g, next.day)) + ' · ' + label + '</span></div>' +
+      '<div class="vs">' + teamCol(h) +
       '<div class="mid">VS<small>' + (next.home === g.userTeam ? 'DOMICILE' : 'EXTÉRIEUR') + '</small></div>' +
-      '<div class="t">' + UI.teamBadge(a) + UI.esc(a.name) + '<span class="small muted">' + a.record.w + 'V-' + a.record.l + 'D · série ' + (a.record.streak || '-') + '</span></div></div>' +
+      teamCol(a) + '</div>' +
       (sh && sa ? '<div class="star-duel">' +
         '<div class="sd-side click" data-act="player" data-id="' + sh.id + '">' + BM.portrait(sh, h, 42) + '<div><b>' + UI.esc(BM.shortName(sh)) + '</b> ' + UI.ovrBadge(BM.ovr(sh)) + '<div class="small muted">' + UI.per(sh, 'pts') + ' pts · ' + UI.per(sh, 'reb') + ' reb · ' + UI.per(sh, 'ast') + ' pd</div></div></div>' +
         '<span class="sd-vs">DUEL</span>' +
         '<div class="sd-side right click" data-act="player" data-id="' + sa.id + '"><div><b>' + UI.esc(BM.shortName(sa)) + '</b> ' + UI.ovrBadge(BM.ovr(sa)) + '<div class="small muted">' + UI.per(sa, 'pts') + ' pts · ' + UI.per(sa, 'reb') + ' reb · ' + UI.per(sa, 'ast') + ' pd</div></div>' + BM.portrait(sa, a, 42) + '</div>' +
       '</div>' : '') +
-      (today ? '<div style="margin-top:12px"><button class="btn primary block" data-act="continue">🏀 Aller au match</button></div>' : '') +
+      (today ? '<div style="margin-top:10px"><button class="btn primary block" data-act="continue">' + UI.icon('ball', 'ico') + 'Aller au match</button></div>' : '') +
       '</div>';
   } else {
     nextHtml = '<div class="card"><h2>Aucun match programmé</h2><p class="small muted">' + (g.phase === 'playoffs' ? 'Votre équipe est éliminée. Les playoffs continuent.' : 'Fin de saison en approche.') + '</p></div>';
@@ -205,32 +240,43 @@ UI.tab_home = function () {
   var injured = roster.filter(function (p) { return p.injury > 0; }).length;
   var conf = g.board.confidence;
   var msgs = g.inbox.slice(0, 20);
-  var icons = { board: '🏛', match: '🏀', medical: '✚', transfer: '⇄', finance: '$', info: '✉', dev: '📈', scout: '🔭', media: '🎤', dyn: '👥' };
+  var icons = { board: 'board', match: 'ball', medical: 'medical', transfer: 'transfer', finance: 'finance', info: 'info', dev: 'dev', scout: 'scout', media: 'media', dyn: 'dyn' };
   var ptsLeaders = BM.leaders(g, 'pts', 3);
-  var tickerHtml = ptsLeaders.length ? '<div class="card ticker-card"><div class="card-h"><h3>À la une NBA · Leaders au scoring</h3><span class="small muted">Saison ' + g.season + '</span></div>' +
+  var tickerHtml = ptsLeaders.length ? '<div class="card ticker-card"><div class="card-h"><h3>Leaders au scoring</h3><span class="small muted">Saison ' + g.season + '</span></div>' +
     '<div class="ticker-row">' + ptsLeaders.map(function (p, idx) {
       var pt = g.teams[p.teamId];
       return '<div class="ticker-item click" data-act="player" data-id="' + p.id + '">' +
-        BM.portrait(p, pt, 34) +
-        '<div><b>#' + (idx + 1) + ' ' + UI.esc(BM.shortName(p)) + '</b> <span class="muted small">' + (pt ? pt.short : '') + '</span>' +
-        '<div class="small" style="color:var(--accent);font-weight:700">' + UI.per(p, 'pts') + ' PTS · ' + UI.per(p, 'reb') + ' REB · ' + UI.per(p, 'ast') + ' PD</div></div></div>';
+        BM.portrait(p, pt, 30) +
+        '<div><b>' + (idx + 1) + '. ' + UI.esc(BM.shortName(p)) + '</b> <span class="muted small">' + (pt ? pt.short : '') + '</span>' +
+        '<div class="small muted">' + UI.per(p, 'pts') + ' pts · ' + UI.per(p, 'reb') + ' reb · ' + UI.per(p, 'ast') + ' pd</div></div></div>';
     }).join('') + '</div></div>' : '';
 
-  return nextHtml +
-    '<div class="grid2">' +
+  return '<div class="grid2">' +
     '<div class="kpi"><b><span data-count="' + confPos + '">' + confPos + '</span><sup>e</sup></b><span>' + UI.esc(BM.CONFERENCES[me.conf]) + ' · ' + me.record.w + 'V-' + me.record.l + 'D</span></div>' +
     '<div class="kpi"><b data-count="' + conf + '" data-suffix="%">' + conf + '%</b><span>Confiance direction</span>' + UI.bar(conf) + '</div>' +
     '<div class="kpi"><b data-count="' + morale + '">' + morale + '</b><span>Moral moyen</span>' + UI.bar(morale) + '</div>' +
     '<div class="kpi"><b data-count="' + injured + '">' + injured + '</b><span>Blessé(s) · cohésion ' + Math.round(me.cohesion) + '</span></div>' +
     '</div>' +
-    tickerHtml +
-    '<div class="card"><div class="card-h"><h2>Messagerie</h2><span class="small muted">Objectif : ' + BM.OBJECTIVES[g.objective] + '</span></div>' +
+    nextHtml +
+    '<div class="card inbox"><div class="card-h"><h2>Messagerie</h2><span class="small muted">Objectif : ' + BM.OBJECTIVES[g.objective] + '</span></div>' +
     (msgs.length ? msgs.map(function (m) {
-      return '<div class="msg' + (m.read ? '' : ' unread') + '" data-act="openMsg" data-id="' + m.id + '"><div class="ic">' + (icons[m.type] || '✉') + '</div><div style="min-width:0">' +
-        '<b>' + UI.esc(m.title) + '</b>' + (m.actions ? '<span class="tag warn">Action requise</span>' : '') +
-        '<p>' + UI.esc(BM.dateLabel(g, m.day)) + '</p></div></div>';
+      return '<div class="msg' + (m.read ? '' : ' unread') + '" data-act="openMsg" data-id="' + m.id + '"><div class="ic">' + UI.icon(icons[m.type] || 'info') + '</div><div style="min-width:0">' +
+        '<b>' + UI.esc(m.title) + '</b>' + (m.actions ? '<p><span class="tag warn" style="margin:0">Action requise</span></p>' : '') + '</div>' +
+        '<span class="when">' + UI.esc(BM.dateLabel(g, m.day)) + '</span></div>';
     }).join('') : '<p class="muted">Aucun message.</p>') +
-    '</div>';
+    '</div>' +
+    tickerHtml;
+};
+
+// Cinq derniers résultats d'une équipe (V/D), du plus ancien au plus récent.
+UI.formPips = function (g, t) {
+  var res = g.fixtures.filter(function (f) { return f.played && (f.home === t.id || f.away === t.id); })
+    .sort(function (a, b) { return a.day - b.day; }).slice(-5).map(function (f) {
+      var us = f.home === t.id ? f.hs : f.as, them = f.home === t.id ? f.as : f.hs;
+      return us > them;
+    });
+  if (!res.length) return '<span class="small muted">Pas encore de match</span>';
+  return '<span class="form-pips" aria-label="Forme récente">' + res.map(function (w) { return '<i class="' + (w ? 'v' : 'd') + '">' + (w ? 'V' : 'D') + '</i>'; }).join('') + '</span>';
 };
 
 UI.actions.openMsg = function (el) {
@@ -310,7 +356,7 @@ UI.squad_list = function () {
   return '<div class="card"><div class="card-h"><h2>Effectif (' + list.length + '/' + BM.ROSTER_MAX + ')</h2><span class="small muted">Masse salariale ' + BM.money(BM.payroll(g, me)) + ' / ' + BM.money(me.wageBudget) + '</span></div>' +
     '<div class="table-wrap"><table><thead><tr>' + UI.SQUAD_COLS.map(function (c) {
       var arrow = UI.sort.key === c[0] ? (UI.sort.dir < 0 ? ' ↓' : ' ↑') : '';
-      return '<th data-act="sort" data-k="' + c[0] + '" class="' + (c[2] ? 'num' : '') + (c[0] === 'salary' || c[0] === 'pts' ? ' hide-sm' : '') + '">' + c[1] + arrow + '</th>';
+      return '<th data-act="sort" data-k="' + c[0] + '" class="' + (c[2] ? 'num' : '') + (UI.sort.key === c[0] ? ' sorted' : '') + (c[0] === 'salary' || c[0] === 'pts' ? ' hide-sm' : '') + '">' + c[1] + arrow + '</th>';
     }).join('') + '</tr></thead><tbody>' +
     list.map(function (p) {
       var gr = BM.gravity(p);
@@ -361,7 +407,7 @@ UI.showPlayer = function (id) {
   } else {
     actions = p.prospect ? '<p class="hint" style="margin:0">Prospect de la draft (' + UI.esc(p.college) + ') : disponible le soir de la draft.</p>'
       : '<div class="btn-row"><button class="btn primary" style="flex:1" data-act="offerForm" data-id="' + p.id + '">' + (team ? 'Offre de rachat' : 'Proposer un contrat') + '</button>' +
-        (team ? '<button class="btn" style="flex:1" data-act="jumpTrade" data-id="' + p.id + '">⇄ Négocier un échange</button>' : '') + '</div>';
+        (team ? '<button class="btn" style="flex:1" data-act="jumpTrade" data-id="' + p.id + '">' + UI.icon('transfer', 'ico sm') + 'Négocier un échange</button>' : '') + '</div>';
     if (BM.knowledge(g, p) < 100) actions += '<button class="btn block" data-act="scoutPlayer" data-id="' + p.id + '">Faire observer par un scout</button>';
   }
   var progress = p.lastProgress && g.day - p.lastProgress.day <= 14
@@ -693,7 +739,7 @@ UI.comp_table = function () {
       '<div class="table-wrap"><table><thead><tr><th>#</th><th>Équipe</th><th class="num">V</th><th class="num">D</th><th class="num">Diff</th><th class="num hide-sm">Pts+</th><th class="num">Série</th></tr></thead><tbody>' +
       st.map(function (t, i) {
         var r = t.record, diff = r.pf - r.pa;
-        return '<tr class="' + (t.id === g.userTeam ? 'me' : '') + '"' + (i === 7 ? ' style="border-bottom:2px solid var(--accent)"' : '') + '>' +
+        return '<tr class="' + (t.id === g.userTeam ? 'me' : '') + (i === 7 ? ' cut' : '') + '">' +
           '<td>' + (i + 1) + '</td><td>' + UI.teamBadge(t, true) + ' ' + UI.esc(t.name) + '</td><td class="num">' + r.w + '</td><td class="num">' + r.l + '</td>' +
           '<td class="num">' + (diff > 0 ? '+' : '') + diff + '</td><td class="num hide-sm">' + r.pf + '</td><td class="num">' + (r.streak || '-') + '</td></tr>';
       }).join('') + '</tbody></table></div></div>';
@@ -753,8 +799,8 @@ UI.comp_playoffs = function () {
       '</div></div>';
   };
   var finals = po.series.filter(function (s) { return s.round === 4; });
-  var finHtml = finals.length ? '<div class="card hero-card"><div class="card-h"><h2>🏆 Finales NBA · Meilleur des 7</h2></div>' + finals.map(seriesCard).join('') + '</div>' : '';
-  return (po.champion !== undefined ? '<div class="card hero-card" style="text-align:center"><h2>🏆 Champion NBA : ' + UI.esc(g.teams[po.champion].name) + '</h2></div>' : '') +
+  var finHtml = finals.length ? '<div class="card hero-card"><div class="card-h"><h2>' + UI.icon('trophy', 'ico') + ' Finales NBA · Meilleur des 7</h2></div>' + finals.map(seriesCard).join('') + '</div>' : '';
+  return (po.champion !== undefined ? '<div class="card hero-card" style="text-align:center"><h2>' + UI.icon('trophy', 'ico') + ' Champion NBA : ' + UI.esc(g.teams[po.champion].name) + '</h2></div>' : '') +
     finHtml + confTree('E', 'Conférence Est') + confTree('W', 'Conférence Ouest');
 };
 
@@ -1242,7 +1288,7 @@ UI.market_trade = function () {
     '<div class="field"><label>Partenaire</label><select class="sel" data-change="tradePartner">' + g.teams.filter(function (t) { return t.id !== g.userTeam; }).map(function (t) {
       return '<option value="' + t.id + '"' + (t.id === T.partner ? ' selected' : '') + '>' + UI.esc(t.name) + ' (' + t.record.w + '-' + t.record.l + ')</option>';
     }).join('') + '</select></div>' +
-    '<div style="margin-top:8px"><button class="btn block" data-act="findTrades"' + (open ? '' : ' disabled') + '>🔍 Chercher des offres IA ' + (giveIds.length ? '(pour vos joueurs cochés)' : getIds.length ? '(pour la cible cochée)' : '(pistes automatiques)') + '</button></div>' +
+    '<div style="margin-top:8px"><button class="btn block" data-act="findTrades"' + (open ? '' : ' disabled') + '>' + UI.icon('scout', 'ico sm') + 'Chercher des offres IA ' + (giveIds.length ? '(pour vos joueurs cochés)' : getIds.length ? '(pour la cible cochée)' : '(pistes automatiques)') + '</button></div>' +
     '<p class="hint" style="margin:8px 0 0">Règle salariale : au-dessus du plafond, vous ne pouvez pas recevoir plus de 125 % (+250 k$) des salaires envoyés. Les clubs en reconstruction privilégient jeunesse et potentiel, les candidats au titre le niveau immédiat.</p></div>' +
     offersHtml +
     '<div class="card"><div class="card-h"><h3>Vous envoyez</h3><span class="small muted">' + BM.money(sum('give')) + '</span></div>' + BM.roster(g, me).sort(function (a, b) { return BM.ovrRaw(b) - BM.ovrRaw(a); }).map(function (p) { return row(p, 'give'); }).join('') + '</div>' +

@@ -94,190 +94,324 @@ var BM = globalThis.BM = globalThis.BM || {};
   // Convertit les coordonnées demi-terrain du moteur (play.spot) en coordonnées sur le terrain complet.
   Court.prototype.spotToCourt = function (side, q, spot) {
     if (!spot) return null;
-    var depth = Math.max(1.5, (W - 5.25) - spot.x);
+    // Le moteur donne { depth, y } (profondeur depuis le panier) ; anciens formats : { x, y } en demi-terrain.
+    var depth = spot.depth !== undefined ? Math.max(1.5, spot.depth) : Math.max(1.5, (W - 5.25) - spot.x);
+    if (!isFinite(depth) || !isFinite(spot.y)) return null;
     var right = (side === 0) === (q <= 2);
     var y = right ? spot.y : H - spot.y;
     return this.at(side, q, depth, y);
   };
 
+  // Placements offensifs [profondeur depuis le panier, y] par système, du meneur au pivot.
+  var SETS = {
+    pnr: [[27, 25], [22, 7], [4.5, 3.4], [18, 41], [9, 31]],
+    motion: [[27, 25], [22, 6], [22, 44], [5, 3.4], [5, 46.6]],
+    run: [[27, 25], [22, 6], [22, 44], [5, 3.4], [5, 46.6]],
+    iso: [[26, 25], [5, 3.4], [22, 6], [5, 46.6], [22, 44]],
+    post: [[25, 21], [21, 6], [5, 46.6], [17, 41], [7, 31.5]],
+    princeton: [[24, 13], [24, 37], [5, 3.4], [17, 25], [16, 33]]
+  };
+  var PHASE = { up: 'Remontée de balle', set: 'Mise en place', act: 'Action', shot: 'Tir', reb: 'Rebond', fast: 'Contre-attaque', back: 'Repli' };
+
   // ---------------------------------------------------------------- chorégraphie d'une possession
-  Court.prototype.animate = function (play, ms) {
+  // Phases : remontée (le porteur traverse la médiane, la défense se replie), mise en place du système,
+  // circulation, action (écran, poste bas, isolation, coupe), aides défensives, tir, rebond, relance.
+  Court.prototype.animate = function (play, ms, skip) {
     if (!play) return;
     var self = this, m = this.m, q = play.q, o = play.o, d = 1 - o;
-    var jit = function () { return (Math.random() - 0.5) * 2.4; };
-    var tracks = {}, add = function (id, t, p) { (tracks[id] = tracks[id] || []).push({ t: t, x: p.x, y: p.y }); };
+    var jit = function (a) { return (Math.random() - 0.5) * 2 * (a === undefined ? 1.2 : a); };
+    var tracks = {}, add = function (id, t, p) { if (id && p && isFinite(p.x) && isFinite(p.y)) (tracks[id] = tracks[id] || []).push({ t: BM.clamp(t, 0, 1), x: p.x, y: p.y }); };
+    var A = function (depth, y) { return self.at(o, q, depth, y); };       // demi-terrain offensif
+    var B = function (depth, y) { return self.at(d, q, depth, y); };       // demi-terrain défensif (panier de l'attaque)
     var onIds = play.on[0].concat(play.on[1]);
-    // Joueurs qui sortent : retour au banc.
     Object.keys(this.pos).forEach(function (id) {
       id = +id;
-      if (onIds.indexOf(id) < 0) { add(id, 0, self.pos[id]); add(id, 0.38, BENCH); }
+      if (onIds.indexOf(id) < 0) { add(id, 0, self.pos[id]); add(id, 0.3, BENCH); }
     });
     onIds.forEach(function (id) { add(id, 0, self.pos[id] || BENCH); });
 
     var offIds = this.sorted(play.on[o]), defIds = this.sorted(play.on[d]);
-    var bx = this.basketX(o, q), dirIn = bx > W / 2 ? 1 : -1;
-    var rim = { x: bx, y: 25 };
-    var baseSpots = m.tac[o].play === 'three' ? FIVE_OUT : SPOTS;
-    var setup = {};
+    var bx = this.basketX(o, q), dirIn = bx > W / 2 ? 1 : -1, rim = { x: bx, y: 25 };
+    var sys = play.system || 'pnr', sch = play.scheme || 'drop';
+    var zone = sch === 'zone', press = sch === 'press';
+    var half = !play.fast && !play.putback;
+    var holder = play.handler || offIds[0];
+    var shooter = play.shooter || null;
+
+    // Calendrier de la possession (fraction de la durée affichée).
+    var tCross = 0.13, tSet = 0.27, tAct = 0.43, tShot = 0.64, tRim = 0.8;
+    if (play.fast) { tCross = 0.1; tSet = 0.2; tAct = 0.26; tShot = 0.42; tRim = 0.56; }
+    if (play.putback) { tCross = 0; tSet = 0; tAct = 0.06; tShot = 0.2; tRim = 0.36; }
+    if (play.hack) { tAct = 0.3; }
+    this.phases = play.fast ? [[0, PHASE.fast], [tShot, PHASE.shot], [tRim, PHASE.reb]]
+      : play.putback ? [[0, PHASE.reb]]
+      : [[0, PHASE.up], [tCross + 0.04, PHASE.set], [tAct - 0.04, actionLabel(play)], [tShot, PHASE.shot], [tRim, PHASE.reb]];
+
+    // 1. Placements du système.
+    var base = SETS[sys] || SETS.pnr, setup = {};
     offIds.forEach(function (id, i) {
-      var s = baseSpots[i] || SPOTS[0], depth = s[0] + jit(), y = s[1] + jit();
-      if (play.fast) { depth = 7 + i * 4.8; y = 10 + i * 7; }
-      else if (play.action === 'iso' && id !== play.shooter) {
-        // Isolation : les 4 coéquipiers écartent le jeu sur le côté faible.
-        depth = i % 2 === 0 ? 22 : 5;
-        y = i < 2 ? 4 : 46;
-      }
-      setup[id] = self.at(o, q, depth, y);
+      var s = base[i] || base[0];
+      var p = A(s[0] + jit(0.8), s[1] + jit(0.8));
+      if (sys === 'iso' && shooter && id === shooter && i !== 0) p = A(23, 9 + jit());
+      setup[id] = p;
     });
-    var defSpot = function (oid, i, k) {
-      if (m.tac[d].defense === 'zone' && !play.fast) { var z = ZONE[i] || ZONE[0]; return self.at(o, q, z[0], z[1]); }
-      var op = setup[oid] || rim;
-      return { x: lerp(op.x, rim.x, k), y: lerp(op.y, rim.y, k) };
+    if (sys === 'iso' && shooter && shooter !== offIds[0]) { var tmp = setup[offIds[0]]; setup[offIds[0]] = A(22, 44); setup[shooter] = tmp; }
+
+    // 2. Remontée de balle : le porteur part de son camp, franchit la médiane, entre dans le système.
+    if (half) {
+      var hStart = this.pos[holder] || B(14, 25);
+      if (Math.abs(hStart.x - bx) < W / 2 - 4) hStart = B(16, 25 + jit(6)); // il repart de son camp
+      add(holder, 0.02, hStart);
+      add(holder, tCross, { x: W / 2 - dirIn * 1.5, y: BM.clamp(hStart.y + (setup[holder].y - hStart.y) * 0.5, 6, 44) });
+      add(holder, tSet, setup[holder]);
+      offIds.forEach(function (id, i) {
+        if (id === holder) return;
+        var s = setup[id], stag = 0.03 * i;
+        add(id, tCross + stag, { x: lerp(self.pos[id] ? self.pos[id].x : W / 2, s.x, 0.55), y: lerp(self.pos[id] ? self.pos[id].y : 25, s.y, 0.7) });
+        add(id, tSet + stag * 0.5, s);
+      });
+    } else if (play.fast) {
+      // Contre-attaque : tout le monde sprinte, couloirs remplis.
+      offIds.forEach(function (id, i) {
+        var lane = [25, 6, 44, 14, 36][i] || 25;
+        add(id, tSet, A(id === holder ? 14 : 9 + i * 2, lane + jit()));
+      });
+    } else {
+      offIds.forEach(function (id) { add(id, 0.04, self.pos[id] || setup[id]); });
+    }
+
+    // 3. Défense : homme à homme (chacun entre son joueur et le panier, aides côté faible) ou zone 2-3.
+    var ballAt = setup[holder] || rim;
+    var guard = {};
+    defIds.forEach(function (id, i) { guard[id] = offIds[Math.min(i, offIds.length - 1)]; });
+    var defSpot = function (did, i, ball, ballHolder, tight) {
+      if (zone) {
+        var z = ZONE[i] || ZONE[0], shift = (ball.y - 25) * 0.3, up = i < 2 && Math.abs(ball.y - (i === 0 ? 17 : 33)) < 12 ? -2.5 : 0;
+        return A(z[0] - up, BM.clamp(z[1] + shift, 3, 47));
+      }
+      var man = guard[did], mp = tracksAt(man) || setup[man] || rim;
+      if (man === ballHolder) return { x: lerp(mp.x, rim.x, tight ? 0.08 : 0.13), y: lerp(mp.y, rim.y, 0.1) };
+      var far = Math.abs(mp.y - ball.y) > 15;
+      var k = far ? 0.45 : 0.25;
+      return { x: lerp(mp.x, rim.x, k), y: lerp(mp.y, far ? (mp.y + ball.y) / 2 : rim.y, far ? 0.35 : 0.15) };
     };
-    var tSet = play.fast ? 0.22 : 0.32;
-    offIds.forEach(function (id) { add(id, tSet, setup[id]); });
-    defIds.forEach(function (id, i) { add(id, tSet + 0.03, defSpot(offIds[i], i, play.fast ? 0.15 : 0.26)); });
+    var tracksAt = function (id) { var tr = tracks[id]; return tr && tr.length ? tr[tr.length - 1] : null; };
+    var defendAll = function (t, ball, ballHolder, tight, except) {
+      defIds.forEach(function (did, i) { if (!except || except.indexOf(did) < 0) add(did, t, defSpot(did, i, ball, ballHolder, tight)); });
+    };
+    if (half) {
+      // Repli défensif pendant la remontée (ou pressing tout-terrain).
+      defIds.forEach(function (did, i) {
+        var start = self.pos[did] || B(20, 25);
+        if (press) {
+          var man = guard[did], mp = self.pos[man] || B(18, 25);
+          add(did, tCross * 0.6, { x: lerp(mp.x, rim.x, 0.08), y: mp.y });
+          if (man === holder || i === 1) add(did, tCross, { x: (tracksAt(holder) || mp).x + dirIn * 1.2, y: (tracksAt(holder) || mp).y + (i === 1 ? 2.2 : -1.2) });
+        } else {
+          add(did, tCross * 0.8, { x: lerp(start.x, rim.x, 0.7), y: lerp(start.y, 25, 0.4) });
+        }
+      });
+      defendAll(tSet + 0.02, ballAt, holder, false);
+    } else if (play.fast) {
+      defIds.forEach(function (did, i) { add(did, tSet + 0.04, A(4 + i * 3.2, 25 + (i - 2) * 4)); });
+    } else {
+      defendAll(0.05, rim, null, true);
+    }
 
-    // Ballon : porteur, passes, tir.
-    var segs = [], holder = play.handler || offIds[0];
-    var hold = function (pid, t0, t1) { segs.push({ t0: t0, t1: t1, holder: pid }); };
+    // 4. Circulation du ballon puis action du système.
+    var segs = [], fx = [];
+    var hold = function (pid, t0, t1) { if (t1 > t0) segs.push({ t0: t0, t1: t1, holder: pid }); };
     var fly = function (t0, t1, from, to, peak, kind) { segs.push({ t0: t0, t1: t1, from: from, to: to, peak: peak, kind: kind }); };
-    var fx = [];
-    this.activeAction = play.action || null;
     this.screenSpot = null;
+    this.zoneOn = zone && !play.fast ? { side: o, q: q, t0: tSet, shift: 0 } : null;
 
-    if (play.kind === 'shot') {
-      var sh = play.shooter, type = play.type;
-      var shotSpot = this.spotToCourt(o, q, play.spot);
-      if (!shotSpot) {
-        if (type === 'rim') shotSpot = this.at(o, q, 2.5 + Math.random() * 2, 25 + jit());
-        else if (type === 'mid') shotSpot = this.at(o, q, 13 + Math.random() * 3, 25 + jit() * 3);
-        else {
-          var sp = setup[sh] || this.at(o, q, 24, 25), depth = Math.abs(sp.x - bx);
-          var dist = Math.sqrt(depth * depth + (sp.y - 25) * (sp.y - 25));
-          shotSpot = dist >= 23.9 ? sp : this.at(o, q, 25, sp.y < 25 ? 12 : 38);
+    var others = offIds.filter(function (id) { return id !== holder && id !== shooter && id !== play.screener; });
+    var swings = !half ? [] : sys === 'motion' ? others.slice(0, 2) : sys === 'princeton' ? offIds.filter(function (id, i) { return i === 3 && id !== holder; }) : sys === 'post' && play.action === 'post' ? [] : others.slice(0, sys === 'pnr' ? 0 : 1);
+    var chain = [holder].concat(swings);
+    if (play.passer && chain.indexOf(play.passer) < 0 && play.passer !== shooter) chain.push(play.passer);
+    var actT = tAct;
+
+    if (half && play.kind !== 'none') {
+      if (sys === 'pnr' && play.screener && play.screener !== holder) {
+        var hs = setup[holder], side = hs.y > 25 ? -1 : 1;
+        var scr = { x: hs.x + dirIn * 2.2, y: hs.y + side * 2.6 };
+        add(play.screener, tAct - 0.07, scr); add(play.screener, tAct + 0.03, scr);
+        add(play.screener, tAct + 0.16, A(4.5, 25 - side * 3));
+        add(holder, tAct + 0.08, { x: scr.x + dirIn * 4, y: scr.y + side * 4 });
+        this.screenSpot = { x: scr.x, y: scr.y, t0: tAct - 0.07, t1: tAct + 0.05 };
+        var hd = defIds[offIds.indexOf(holder)], sd = defIds[offIds.indexOf(play.screener)];
+        if (sch === 'blitz' && hd && sd) {
+          add(sd, tAct + 0.02, { x: scr.x + dirIn * 2.5, y: scr.y + side * 2 });
+          fx.push({ t: tAct + 0.02, kind: 'tag', text: 'PRISE À DEUX', at: scr, color: this.teamColor(d) });
+        } else if (sch === 'switch' && hd && sd) {
+          var g2 = guard[hd]; guard[hd] = guard[sd]; guard[sd] = g2;
+          fx.push({ t: tAct + 0.03, kind: 'tag', text: 'CHANGE', at: scr, color: this.teamColor(d) });
+        } else if (sd && !zone) {
+          add(sd, tAct + 0.04, A(9, 25));
         }
+        defendAll(tAct + 0.1, { x: scr.x + dirIn * 4, y: scr.y }, holder, true, sch === 'blitz' ? [sd] : null);
+      } else if (play.action === 'post' || sys === 'post') {
+        var poster = shooter && offIds.indexOf(shooter) >= 3 ? shooter : offIds[4] || offIds[offIds.length - 1];
+        var block = A(7, setup[poster] && setup[poster].y < 25 ? 18 : 32);
+        add(poster, tAct - 0.05, block);
+        if (chain.indexOf(poster) < 0 && poster !== shooter) chain.push(poster);
+        var pd = defIds[offIds.indexOf(poster)];
+        if (pd && !zone) add(pd, tAct, { x: lerp(block.x, rim.x, 0.25), y: block.y });
+        defendAll(tAct + 0.08, block, poster, true, pd ? [pd] : null);
+        fx.push({ t: tAct, kind: 'tag', text: 'POSTE BAS', at: block, color: this.teamColor(o) });
+      } else if (sys === 'iso') {
+        var star = shooter || holder, sp0 = setup[star];
+        add(star, tAct + 0.08, { x: lerp(sp0.x, rim.x, 0.45), y: lerp(sp0.y, 25, 0.4) });
+        defendAll(tAct + 0.1, { x: lerp(sp0.x, rim.x, 0.45), y: sp0.y }, star, true);
+        fx.push({ t: tAct, kind: 'tag', text: 'ISOLATION', at: sp0, color: this.teamColor(o) });
+      } else if (sys === 'princeton' && shooter && shooter !== holder) {
+        var w = setup[shooter];
+        add(shooter, tAct, { x: w.x + dirIn * 2.5, y: w.y });
+        add(shooter, tAct + 0.12, A(3.5, 25 + (w.y < 25 ? -2.5 : 2.5)));
+        fx.push({ t: tAct + 0.04, kind: 'tag', text: 'COUPE ARRIÈRE', at: w, color: this.teamColor(o) });
+        defendAll(tAct + 0.12, A(5, 25), shooter, false);
+      } else {
+        defendAll(tAct + 0.08, setup[chain[chain.length - 1]] || ballAt, chain[chain.length - 1], false);
       }
+    }
 
-      // Chorégraphies spécifiques selon l'action tactique (Pick & Roll, Post-up, Cut).
-      if (play.action === 'pnr' && play.screener && play.screener !== holder) {
-        var hSpot = setup[holder] || this.at(o, q, 26, 25);
-        var scrPos = { x: hSpot.x + dirIn * 2.2, y: hSpot.y + (hSpot.y > 25 ? -2.6 : 2.6) };
-        add(play.screener, 0.39, scrPos);
-        add(play.screener, 0.49, scrPos);
-        add(play.screener, 0.62, this.at(o, q, 4.5, 25 + (hSpot.y > 25 ? -3 : 3)));
-        this.screenSpot = { x: scrPos.x, y: scrPos.y, t0: 0.36, t1: 0.54 };
-        if (holder !== sh) {
-          add(holder, 0.47, { x: scrPos.x + dirIn * 3.5, y: scrPos.y + (hSpot.y > 25 ? -3.5 : 3.5) });
-        }
-      } else if (play.action === 'post') {
-        var postBlock = this.at(o, q, 7.5, shotSpot.y < 25 ? 18 : 32);
-        add(sh, 0.42, postBlock);
-      } else if (play.action === 'cut' && sh !== holder) {
-        var startWing = setup[sh] || this.at(o, q, 22, 10);
-        add(sh, 0.43, { x: startWing.x - dirIn * 2, y: startWing.y });
+    // 5. Dénouement : tir, perte de balle ou faute.
+    if (play.kind === 'shot' && shooter) {
+      var type = play.type, shotSpot = this.spotToCourt(o, q, play.spot);
+      if (!shotSpot) shotSpot = type === 'rim' ? A(2.5 + Math.random() * 2, 25 + jit()) : type === 'mid' ? A(13 + Math.random() * 3, 25 + jit(4)) : (setup[shooter] || A(24, 12));
+      if (play.heave) shotSpot = { x: W / 2 - dirIn * 2, y: 25 + jit(6) };
+      if (chain[chain.length - 1] !== shooter) chain.push(shooter);
+      // Passes successives, la dernière arrive juste avant le tir.
+      var tFirst = half ? tSet + 0.02 : play.fast ? 0.12 : 0.04, tLast = tShot - 0.05;
+      var n = chain.length - 1, step = n > 0 ? (tLast - tFirst) / n : 0, tp = tFirst;
+      hold(chain[0], 0, n ? tFirst : tShot);
+      for (var c = 1; c <= n; c++) {
+        var lob = play.alleyOop && c === n, t1 = Math.min(tLast, tp + (lob ? 0.08 : 0.05));
+        fly(tp, t1, { holder: chain[c - 1] }, { holder: chain[c] }, lob ? 9 : 2.2, lob ? 'lob' : 'pass');
+        var nt = c === n ? tShot : Math.min(tLast, tFirst + step * c + 0.01);
+        hold(chain[c], t1, nt);
+        if (c < n && !play.fast) defendAll(t1 + 0.02, setup[chain[c]] || ballAt, chain[c], false);
+        tp = nt;
       }
-
-      var passer = play.passer && play.passer !== sh ? play.passer : null;
-      var tPass1 = 0.44, tPass2 = 0.54, tShot = 0.62, tRim = 0.80;
-      hold(holder, 0, tPass1);
-      var chain = [holder];
-      if (passer && passer !== holder) chain.push(passer);
-      if (chain[chain.length - 1] !== sh) chain.push(sh);
-      var tp = tPass1;
-      for (var c = 1; c < chain.length; c++) {
-        var isLob = play.alleyOop && c === chain.length - 1;
-        var t1 = Math.min(tShot - 0.03, tp + (isLob ? 0.11 : 0.07));
-        fly(tp, t1, { holder: chain[c - 1] }, { holder: chain[c] }, isLob ? 9 : 2.2, isLob ? 'lob' : 'pass');
-        var nextT = c === chain.length - 1 ? tShot : Math.min(tShot - 0.05, t1 + 0.04);
-        hold(chain[c], t1, nextT);
-        tp = nextT;
+      add(shooter, tShot - 0.06, shotSpot); add(shooter, tShot, shotSpot);
+      // Le défenseur direct revient contester ; un défenseur côté faible aide si le tir est près du cercle.
+      var di = defIds[offIds.indexOf(shooter)] || defIds[0];
+      if (zone) { var near = defIds.slice().sort(function (a, b) { var pa = tracksAt(a) || rim, pb = tracksAt(b) || rim; return Math.hypot(pa.x - shotSpot.x, pa.y - shotSpot.y) - Math.hypot(pb.x - shotSpot.x, pb.y - shotSpot.y); }); di = near[0]; }
+      add(di, tShot, { x: lerp(shotSpot.x, rim.x, 0.14), y: shotSpot.y + (shotSpot.y < 25 ? 1.3 : -1.3) });
+      if (type === 'rim' && !play.fast) {
+        var helper = defIds.filter(function (x) { return x !== di; }).sort(function (a, b) { return Math.abs((tracksAt(a) || rim).y - 25) - Math.abs((tracksAt(b) || rim).y - 25); })[0];
+        if (helper) add(helper, tShot - 0.02, { x: lerp(rim.x, shotSpot.x, 0.5), y: lerp(25, shotSpot.y, 0.4) + jit(0.6) });
       }
-      if (chain.length === 1) hold(sh, tPass1, tShot);
-      add(sh, tPass2 + 0.02, shotSpot);
-      add(sh, tShot, shotSpot);
-      // Le défenseur direct monte contester le tireur.
-      var di = offIds.indexOf(sh), dfId = defIds[Math.max(0, Math.min(di, defIds.length - 1))];
-      if (dfId) add(dfId, tShot, { x: lerp(shotSpot.x, rim.x, 0.13), y: shotSpot.y + (shotSpot.y < 25 ? 1.4 : -1.4) });
       if (play.blocker) {
         add(play.blocker, tShot, { x: lerp(shotSpot.x, rim.x, 0.15), y: shotSpot.y - 1 });
-        fly(tShot, tShot + 0.06, { holder: sh }, { x: shotSpot.x - dirIn * 4, y: shotSpot.y + jit() * 2 }, 3, 'block');
-        fx.push({ t: tShot + 0.04, kind: 'text', text: 'CONTRE !', at: shotSpot, color: this.teamColor(d), sound: 'block' });
+        fly(tShot, tShot + 0.06, { holder: shooter }, { x: shotSpot.x - dirIn * 4, y: shotSpot.y + jit(2) }, 3, 'block');
+        fx.push({ t: tShot + 0.04, kind: 'text', text: 'CONTRE', at: shotSpot, color: this.teamColor(d), sound: 'block' });
         tRim = tShot + 0.06;
       } else {
-        fly(tShot, tRim, { holder: sh }, rim, type === 'three' ? 14.5 : type === 'mid' ? 10 : 5.5, play.made ? 'make' : 'miss');
+        fly(tShot, tRim, { holder: shooter }, rim, type === 'three' ? 14.5 : type === 'mid' ? 10 : 5.5, play.made ? 'make' : 'miss');
         if (play.made) {
           var pts = type === 'three' ? 3 : 2;
-          var label = play.alleyOop ? 'ALLEY-OOP ! +' + pts : play.dunk ? 'DUNK ! +' + pts : play.move === 'stepback' ? 'STEP-BACK ! +' + pts : (type === 'three' ? '3 PTS ! +3' : '+' + pts);
-          var snd = play.dunk ? 'dunk' : type === 'three' ? 'three' : 'swish';
-          fx.push({ t: tRim, kind: 'swish', at: rim, color: this.teamColor(o), big: type === 'three' || play.dunk, sound: snd, basketRight: bx > W / 2 });
+          var label = play.alleyOop ? 'ALLEY-OOP +' + pts : play.dunk ? 'DUNK +' + pts : play.move === 'stepback' ? 'STEP-BACK +' + pts : '+' + pts;
+          fx.push({ t: tRim, kind: 'swish', at: rim, color: this.teamColor(o), big: type === 'three' || play.dunk, sound: play.dunk ? 'dunk' : type === 'three' ? 'three' : 'swish', basketRight: bx > W / 2 });
           fx.push({ t: tRim, kind: 'text', text: label, at: rim, color: this.teamColor(o) });
-          if (play.dunk || (type === 'three' && play.move === 'stepback')) fx.push({ t: tRim, kind: 'shake' });
+          if (play.dunk) fx.push({ t: tRim, kind: 'shake' });
         } else {
           fx.push({ t: tRim, kind: 'miss', at: rim, basketRight: bx > W / 2 });
         }
       }
-      if (play.fouled) fx.push({ t: tShot, kind: 'text', text: play.made ? 'AND-ONE !' : 'FAUTE', at: shotSpot, color: '#ffd43b' });
+      if (play.fouled) fx.push({ t: tShot, kind: 'text', text: play.made ? 'AND-ONE' : 'FAUTE', at: shotSpot, color: '#f2c94c' });
+
+      // Rebond : les défenseurs ferment l'accès (box-out), les intérieurs offensifs vont au rebond.
+      var tBox = Math.min(tShot + 0.06, tRim - 0.02);
+      defIds.forEach(function (did) {
+        if (did === play.blocker) return;
+        var man = guard[did], mp = tracksAt(man) || rim;
+        add(did, tBox, { x: lerp(mp.x, rim.x, 0.55), y: lerp(mp.y, 25, 0.45) });
+      });
+      offIds.forEach(function (id, i) {
+        if (id === shooter) return;
+        if (i >= 3) add(id, tBox, A(6 + jit(), 25 + (i === 3 ? -6 : 6)));
+        else if (!play.made) add(id, tBox + 0.04, A(26, 25 + (i - 1) * 10));
+      });
       if (play.made && !play.ft) {
-        // Repli : l'attaque redescend, la défense récupère le ballon sous le panier.
-        segs.push({ t0: tRim, t1: 1, from: rim, to: { x: rim.x - dirIn * 1.5, y: 25 }, peak: 0, kind: 'drop' });
+        // Panier : remise en jeu derrière la ligne de fond, l'attaque se replie.
+        var inb = defIds[4] || defIds[defIds.length - 1], ibSpot = { x: bx + dirIn * 1.2, y: 25 + jit(4) };
+        segs.push({ t0: tRim, t1: tRim + 0.08, from: rim, to: { x: rim.x, y: 25 }, peak: 0, kind: 'drop' });
+        add(inb, tRim + 0.08, { x: rim.x, y: 25 }); add(inb, 0.94, ibSpot);
+        hold(inb, tRim + 0.08, 1);
+        this.phases.push([tRim + 0.06, PHASE.back]);
+        offIds.forEach(function (id, i) { add(id, 1, { x: lerp((tracksAt(id) || rim).x, W / 2, 0.45), y: (tracksAt(id) || rim).y }); });
+        defIds.forEach(function (did, i) { if (did !== inb) add(did, 1, { x: lerp((tracksAt(did) || rim).x, W / 2, 0.25), y: (tracksAt(did) || rim).y }); });
       }
       if (play.reb) {
-        var rb = play.reb.id, rspot = { x: rim.x - dirIn * (3.5 + Math.random() * 4), y: 25 + jit() * 3 };
+        var rb = play.reb.id, rspot = { x: rim.x - dirIn * (3.5 + Math.random() * 4), y: 25 + jit(3) };
         add(rb, tRim + 0.04, rspot);
-        fly(tRim, tRim + 0.1, rim, { holder: rb }, 3.2, 'reb');
-        hold(rb, tRim + 0.1, 1);
+        fly(tRim, tRim + 0.09, rim, { holder: rb }, 3.2, 'reb');
         if (!play.reb.off) {
-          var other = this.basketX(d, q), dirOut = other > W / 2 ? 1 : -1;
-          add(rb, 1, { x: rspot.x + dirOut * 8, y: rspot.y });
+          // Rebond défensif puis relance vers le meneur, toute l'équipe repart.
+          var outlet = defIds[0] !== rb ? defIds[0] : defIds[1], olSpot = { x: rspot.x - dirIn * 12, y: rspot.y < 25 ? 8 : 42 };
+          hold(rb, tRim + 0.09, 0.9);
+          add(outlet, 0.88, olSpot);
+          fly(0.9, 0.96, { holder: rb }, { holder: outlet }, 2.2, 'pass');
+          hold(outlet, 0.96, 1);
+          defIds.forEach(function (did) { if (did !== outlet) add(did, 1, { x: lerp((tracksAt(did) || rim).x, W / 2, 0.35), y: (tracksAt(did) || rim).y }); });
+          offIds.forEach(function (id) { add(id, 1, { x: lerp((tracksAt(id) || rim).x, W / 2, 0.3), y: (tracksAt(id) || rim).y }); });
         } else {
-          fx.push({ t: tRim + 0.08, kind: 'text', text: 'REBOND OFF.', at: rspot, color: this.teamColor(o) });
+          hold(rb, tRim + 0.09, 1);
+          fx.push({ t: tRim + 0.08, kind: 'text', text: 'REBOND OFFENSIF', at: rspot, color: this.teamColor(o) });
         }
       }
-      if (play.ft) fx.push({ t: 0.94, kind: 'text', text: 'LF ' + play.ft.made + '/' + play.ft.n, at: this.at(o, q, 15, 25), color: '#fff' });
+      if (play.ft) fx.push({ t: 0.94, kind: 'text', text: 'LF ' + play.ft.made + '/' + play.ft.n, at: A(15, 25), color: '#ffffff' });
     } else if (play.kind === 'tov') {
-      hold(holder, 0, 0.5);
+      var tT = half ? Math.max(tSet + 0.08, actT) : 0.3, last = chain[Math.min(chain.length - 1, 1)] || holder;
+      hold(holder, 0, chain.length > 1 ? tT - 0.1 : tT);
+      if (chain.length > 1) { fly(tT - 0.1, tT - 0.05, { holder: holder }, { holder: last }, 2, 'pass'); hold(last, tT - 0.05, tT); }
+      else last = holder;
+      var spot = tracksAt(last) || setup[last] || rim;
       if (play.stealer) {
-        add(play.stealer, 0.5, this.pos[holder] ? setup[holder] : rim);
-        fly(0.5, 0.56, { holder: holder }, { holder: play.stealer }, 1, 'steal');
-        hold(play.stealer, 0.56, 1);
-        var gx = this.basketX(d, q), dOut = gx > W / 2 ? 1 : -1;
-        add(play.stealer, 1, { x: (setup[holder] || rim).x + dOut * 22, y: 25 + jit() * 4 });
-        fx.push({ t: 0.52, kind: 'text', text: 'INTERCEPTION !', at: setup[holder] || rim, color: this.teamColor(d) });
+        add(play.stealer, tT, spot);
+        fly(tT, tT + 0.05, { holder: last }, { holder: play.stealer }, 1, 'steal');
+        hold(play.stealer, tT + 0.05, 1);
+        add(play.stealer, 1, { x: spot.x - dirIn * 24, y: 25 + jit(4) });
+        defIds.forEach(function (did) { if (did !== play.stealer) add(did, 1, { x: lerp((tracksAt(did) || rim).x, W / 2, 0.6), y: (tracksAt(did) || rim).y }); });
+        offIds.forEach(function (id) { add(id, 1, { x: lerp((tracksAt(id) || rim).x, W / 2, 0.5), y: (tracksAt(id) || rim).y }); });
+        fx.push({ t: tT, kind: 'text', text: 'INTERCEPTION', at: spot, color: this.teamColor(d) });
+        this.phases.push([tT, PHASE.fast]);
       } else {
-        fly(0.5, 0.6, { holder: holder }, { x: (setup[holder] || rim).x, y: 51 }, 2, 'out');
-        fx.push({ t: 0.55, kind: 'text', text: 'PERTE DE BALLE', at: setup[holder] || rim, color: '#fff' });
+        fly(tT, tT + 0.1, { holder: last }, { x: spot.x, y: 51 }, 2, 'out');
+        fx.push({ t: tT + 0.04, kind: 'text', text: 'PERTE DE BALLE', at: spot, color: '#ffffff' });
       }
     } else if (play.kind === 'foul') {
+      var tF = half ? Math.max(tSet + 0.06, actT) : 0.3;
       hold(holder, 0, 1);
-      fx.push({ t: 0.5, kind: 'text', text: 'FAUTE', at: setup[holder] || rim, color: '#ffd43b' });
-      if (play.ft) fx.push({ t: 0.85, kind: 'text', text: 'LF ' + play.ft.made + '/' + play.ft.n, at: this.at(o, q, 15, 25), color: '#fff' });
+      fx.push({ t: tF, kind: 'text', text: 'FAUTE', at: tracksAt(holder) || setup[holder] || rim, color: '#f2c94c' });
+      if (play.ft) fx.push({ t: 0.85, kind: 'text', text: 'LF ' + play.ft.made + '/' + play.ft.n, at: A(15, 25), color: '#ffffff' });
     } else {
       hold(holder, 0, 1);
     }
 
-    // Mouvements secondaires sans ballon pendant la possession.
+    // Petits ajustements sans ballon pour que personne ne reste figé.
     offIds.forEach(function (id) {
-      if (id === play.shooter || id === play.screener || (play.reb && play.reb.id === id)) return;
-      var s = setup[id];
-      add(id, 0.6, { x: BM.clamp(s.x + jit(), 2, W - 2), y: BM.clamp(s.y + jit(), 2.5, H - 2.5) });
-      add(id, 1, { x: BM.clamp(s.x + jit(), 2, W - 2), y: BM.clamp(s.y + jit(), 2.5, H - 2.5) });
-    });
-    defIds.forEach(function (id, i) {
-      if (id === play.blocker || (play.reb && play.reb.id === id)) return;
-      var s = defSpot(offIds[i], i, 0.3);
-      add(id, 0.65, { x: s.x + jit() * 0.6, y: s.y + jit() * 0.6 });
+      var tr = tracks[id], lastT = tr ? tr[tr.length - 1].t : 0;
+      if (lastT < 0.7) { var s = tracksAt(id) || setup[id]; add(id, Math.max(lastT + 0.15, 0.75), { x: BM.clamp(s.x + jit(), 2, W - 2), y: BM.clamp(s.y + jit(), 2.5, H - 2.5) }); }
     });
 
     Object.keys(tracks).forEach(function (id) { tracks[id].sort(function (a, b) { return a.t - b.t; }); });
     this.tracks = tracks;
     this.ballSegs = segs.sort(function (a, b) { return a.t0 - b.t0; });
-    this.pendingFx = fx;
+    this.pendingFx = skip ? fx.filter(function (f) { return f.kind !== 'tag'; }) : fx;
+    this.guard = zone ? null : guard;
     this.t0 = performance.now();
     this.T = ms;
+    this.skip = !!skip;
     this.attackDir = dirIn;
     this.offSide = o;
+    this.label = (BM.SYSTEMS[sys] ? BM.SYSTEMS[sys].l : '') + ' contre ' + (BM.SCHEMES[sch] ? BM.SCHEMES[sch].l : '');
   };
+
+  function actionLabel(play) {
+    return { pnr: 'Pick & roll', post: 'Jeu au poste bas', iso: 'Isolation', cut: 'Coupe', motion: 'Circulation' }[play.action] || PHASE.act;
+  }
 
   Court.prototype.teamColor = function (s) { return this.m.side[s].color; };
 
@@ -321,7 +455,10 @@ var BM = globalThis.BM = globalThis.BM || {};
   Court.prototype.loop = function (now) {
     if (!this.running) return;
     var u = BM.clamp((now - this.t0) / this.T, 0, 1), self = this;
-    Object.keys(this.tracks).forEach(function (id) { self.pos[id] = self.trackPos(+id, u); });
+    Object.keys(this.tracks).forEach(function (id) {
+      var p = self.trackPos(+id, u);
+      if (isFinite(p.x) && isFinite(p.y)) self.pos[id] = { x: p.x, y: p.y };
+    });
     if (this.pendingFx) {
       this.pendingFx = this.pendingFx.filter(function (f) {
         if (u < f.t) return true;
@@ -329,7 +466,7 @@ var BM = globalThis.BM = globalThis.BM || {};
         return false;
       });
     }
-    this.draw(now, u);
+    try { this.draw(now, u); } catch (e) { /* une image ratée ne doit jamais figer la vue */ }
     this.raf = requestAnimationFrame(this.loop);
   };
 
@@ -358,7 +495,24 @@ var BM = globalThis.BM = globalThis.BM || {};
         else if (/FAUTE|AND-ONE/.test(f.text)) BM.Juice.sound('whistle');
       }
     }
+    if (f.kind === 'tag') this.fx.push({ kind: 'tag', x: f.at.x, y: f.at.y, text: f.text, color: f.color, born: now, life: Math.min(1400, this.T * 0.3) });
   };
+
+  // Phase de jeu en cours (remontée, mise en place, action, tir, rebond).
+  Court.prototype.phaseAt = function (u) {
+    var ph = this.phases || [], cur = '';
+    ph.forEach(function (p) { if (u >= p[0]) cur = p[1]; });
+    return cur;
+  };
+
+  function star(x, cx, cy, r) {
+    x.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r;
+      x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    x.closePath();
+  }
 
   Court.prototype.px = function (v) { return (v + MARGIN) * this.scale; };
 
@@ -444,7 +598,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     // Marques de la zone de coaching et table de marque sur le tablier.
     x.fillStyle = 'rgba(255,255,255,0.12)';
     x.fillRect(P(W / 2 - 9), P(H + 0.5), 18 * s, 1.8 * s);
-    x.font = '700 ' + Math.max(7, Math.round(1.35 * s)) + 'px "Barlow Condensed", system-ui, sans-serif';
+    x.font = '700 ' + Math.max(7, Math.round(1.35 * s)) + 'px Roboto, system-ui, sans-serif';
     x.textAlign = 'center'; x.textBaseline = 'middle';
     x.fillStyle = 'rgba(255,255,255,0.55)';
     x.fillText((this.m.side[0].city || this.m.side[0].name || '').toUpperCase() + ' ARENA', P(W / 2), P(-1.55));
@@ -486,7 +640,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     });
 
     // Logo central : initiales du club à domicile.
-    x.font = '800 ' + Math.round(4.1 * s) + 'px "Barlow Condensed", system-ui, sans-serif';
+    x.font = '800 ' + Math.round(4.1 * s) + 'px Roboto, system-ui, sans-serif';
     x.textAlign = 'center'; x.textBaseline = 'middle';
     x.fillStyle = 'rgba(255,255,255,0.42)';
     x.fillText(self.m.side[0].short, P(W / 2), P(25));
@@ -543,6 +697,34 @@ var BM = globalThis.BM = globalThis.BM || {};
     var holder = null;
     this.ballSegs.forEach(function (sg) { if (sg.holder !== undefined && u >= sg.t0 && u <= sg.t1) holder = sg.holder; });
 
+    // Défense : forme de la zone 2-3, ou fil de marquage entre chaque défenseur et son joueur.
+    var setT = this.phases && this.phases[1] ? this.phases[1][0] : 0.2;
+    if (!this.skip && u > setT && u < 0.82) {
+      var dSide = 1 - (this.offSide || 0), dCol = this.teamColor(dSide);
+      x.save();
+      if (this.zoneOn) {
+        var zd = m.on[dSide].map(function (id) { return self.pos[id]; }).filter(Boolean);
+        if (zd.length >= 4) {
+          zd.sort(function (a, b) { return Math.abs(a.x - W / 2) - Math.abs(b.x - W / 2); });
+          var top = zd.slice(0, 2).sort(function (a, b) { return a.y - b.y; }), bot = zd.slice(2).sort(function (a, b) { return a.y - b.y; });
+          x.globalAlpha = 0.16; x.fillStyle = dCol;
+          x.beginPath(); x.moveTo(P(top[0].x), P(top[0].y)); x.lineTo(P(top[1].x), P(top[1].y));
+          bot.slice().reverse().forEach(function (pt) { x.lineTo(P(pt.x), P(pt.y)); });
+          x.closePath(); x.fill();
+          x.globalAlpha = 0.55; x.strokeStyle = dCol; x.lineWidth = Math.max(1, s * 0.14); x.setLineDash([s * 0.8, s * 0.6]); x.stroke();
+        }
+      } else if (this.guard) {
+        x.globalAlpha = 0.42; x.strokeStyle = '#ffffff'; x.lineWidth = Math.max(0.8, s * 0.1); x.setLineDash([s * 0.35, s * 0.45]);
+        var gd = this.guard;
+        Object.keys(gd).forEach(function (did) {
+          var a = self.pos[did], b = self.pos[gd[did]];
+          if (!a || !b || Math.hypot(a.x - b.x, a.y - b.y) > 16) return;
+          x.beginPath(); x.moveTo(P(a.x), P(a.y)); x.lineTo(P(b.x), P(b.y)); x.stroke();
+        });
+      }
+      x.restore();
+    }
+
     // Indicateur tactique : ligne de passe en cours ou écran Pick & Roll.
     if (this.screenSpot && u >= this.screenSpot.t0 && u <= this.screenSpot.t1) {
       x.save();
@@ -579,7 +761,7 @@ var BM = globalThis.BM = globalThis.BM || {};
       x.beginPath(); x.ellipse(cx + r * 0.12, cy + r * 0.38, r * 1.02, r * 0.58, 0, 0, Math.PI * 2); x.fill();
 
       // Anneau d'endurance discret autour du joueur.
-      var stam = BM.clamp((m.stam[id] !== undefined ? m.stam[id] : 100) / 100, 0.08, 1);
+      var stam = BM.clamp((m.en && m.en[id] !== undefined ? m.en[id] : 100) / 100, 0.08, 1);
       x.beginPath();
       x.arc(cx, cy, r + s * 0.35, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * stam);
       x.strokeStyle = stam > 0.65 ? 'rgba(46,204,113,0.55)' : stam > 0.38 ? 'rgba(243,156,18,0.65)' : 'rgba(231,76,60,0.75)';
@@ -613,19 +795,19 @@ var BM = globalThis.BM = globalThis.BM || {};
 
       // Initiales + poste.
       x.fillStyle = side === 0 ? '#ffffff' : col;
-      x.font = '800 ' + Math.round(2.05 * s) + 'px "Barlow Condensed", system-ui, sans-serif';
+      x.font = '800 ' + Math.round(2.05 * s) + 'px Roboto, system-ui, sans-serif';
       x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillText(pl.last.charAt(0) + pl.first.charAt(0), cx, cy + s * 0.08);
 
       // 1re option choisie par le coach : étoile dorée.
       if (m.firstOpt[side] === id) {
-        x.font = '800 ' + Math.round(2.3 * s) + 'px system-ui, sans-serif';
-        x.fillStyle = '#ffd43b'; x.textAlign = 'center';
-        x.fillText('★', cx + r * 0.95, cy - r * 0.9);
+        star(x, cx + r * 0.95, cy - r * 0.9, s * 1.1);
+        x.fillStyle = '#f2c94c'; x.fill();
+        x.strokeStyle = 'rgba(0,0,0,0.6)'; x.lineWidth = Math.max(0.8, s * 0.12); x.stroke();
       }
       // Étiquette nom sous/sur le porteur de balle ou le joueur incarné.
       if (id === holder || mine) {
-        x.font = '700 ' + Math.round(1.95 * s) + 'px "Barlow Condensed", system-ui, sans-serif';
+        x.font = '700 ' + Math.round(1.95 * s) + 'px Roboto, system-ui, sans-serif';
         x.fillStyle = '#fff'; x.strokeStyle = 'rgba(0,0,0,0.72)'; x.lineWidth = s * 0.45;
         x.strokeText(pl.last, cx, cy - r - s * 1.35);
         x.fillText(pl.last, cx, cy - r - s * 1.35);
@@ -663,15 +845,41 @@ var BM = globalThis.BM = globalThis.BM || {};
       } else if (f.kind === 'text') {
         x.globalAlpha = a < 0.8 ? 1 : (1 - a) / 0.2;
         var pop = a < 0.15 ? 0.6 + a / 0.15 * 0.52 : 1.12 - Math.min(0.12, (a - 0.15));
-        x.font = '800 ' + Math.round(3.3 * s * pop) + 'px "Barlow Condensed", system-ui, sans-serif';
+        x.font = '800 ' + Math.round(3.3 * s * pop) + 'px Roboto, system-ui, sans-serif';
         x.textAlign = 'center'; x.textBaseline = 'middle';
         x.lineWidth = s * 0.65; x.strokeStyle = 'rgba(0,0,0,0.75)';
         var ty = P(f.y) - (4 + a * 5.2) * s, tx = BM.clamp(P(f.x), 8 * s, P(W) - 6 * s);
         x.strokeText(f.text, tx, ty); x.fillStyle = f.color; x.fillText(f.text, tx, ty);
+      } else if (f.kind === 'tag') {
+        x.globalAlpha = a < 0.85 ? 1 : (1 - a) / 0.15;
+        x.font = '700 ' + Math.round(1.7 * s) + 'px Roboto, system-ui, sans-serif';
+        x.textAlign = 'center'; x.textBaseline = 'middle';
+        var tw = x.measureText(f.text).width + s * 1.6, gx = BM.clamp(P(f.x), tw / 2 + s, P(W) - tw / 2), gy = P(f.y) - 4.2 * s;
+        x.fillStyle = f.color; x.fillRect(gx - tw / 2, gy - 1.3 * s, tw, 2.6 * s);
+        x.fillStyle = '#ffffff'; x.fillText(f.text, gx, gy + s * 0.08);
       }
       x.globalAlpha = 1;
       return true;
     });
+
+    // Bandeau de lecture : phase en cours à gauche, système contre défense à droite.
+    var phase = this.skip ? 'Accéléré' : this.phaseAt(u);
+    if (phase || this.label) {
+      var fs = Math.max(10, Math.round(1.55 * s)), padX = fs * 0.6, hh = fs * 1.7, yTop = P(0.6);
+      x.font = '700 ' + fs + 'px Roboto, system-ui, sans-serif';
+      x.textBaseline = 'middle';
+      if (phase) {
+        var pw = x.measureText(phase.toUpperCase()).width + padX * 2;
+        x.fillStyle = 'rgba(6,16,28,0.82)'; x.fillRect(P(0.6), yTop, pw, hh);
+        x.fillStyle = '#ffffff'; x.textAlign = 'left'; x.fillText(phase.toUpperCase(), P(0.6) + padX, yTop + hh / 2);
+      }
+      if (this.label && !this.skip) {
+        x.font = '500 ' + fs + 'px Roboto, system-ui, sans-serif';
+        var lw = x.measureText(this.label).width + padX * 2;
+        x.fillStyle = 'rgba(6,16,28,0.7)'; x.fillRect(P(W - 0.6) - lw, yTop, lw, hh);
+        x.fillStyle = '#d6dbe4'; x.textAlign = 'right'; x.fillText(this.label, P(W - 0.6) - padX, yTop + hh / 2);
+      }
+    }
     x.restore();
   };
 
