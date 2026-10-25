@@ -204,13 +204,14 @@ UI.isKeyPlay = function (m, play, evs, before) {
 UI.tickMatch = function () {
   var L = UI.live;
   if (!L || !L.playing) return;
-  var before = L.m.score.slice();
+  var before = L.m.score.slice(), c0 = { q: L.m.q, clock: L.m.clock };
   var evs = L.m.step(), play = L.m.play;
   var key = UI.viewMode() === 'all' || UI.isKeyPlay(L.m, play, evs, before);
   var T = key ? UI.SPEEDS[L.speed] : UI.SKIP_MS;
   if (L.court) L.court.animate(play, T * 0.96, !key);
   var impact = !key ? 0.9 : play && play.kind === 'shot' ? 0.82 : 0.6;
   L.pending = { evs: evs, before: before };
+  UI.runClock(c0, play, T * impact);
   L.timer = setTimeout(function () {
     UI.flushPending();
     if (L.m.finished) { L.timer = setTimeout(UI.finishMatch, 900); return; }
@@ -222,9 +223,26 @@ UI.tickMatch = function () {
   }, T * impact);
 };
 
+// L'horloge de match et celle des 24 secondes défilent pendant que la possession se joue à l'écran.
+UI.runClock = function (c0, play, ms) {
+  var L = UI.live;
+  clearInterval(L.clockTimer);
+  if (!play || ms < 400) return;
+  var m = L.m, to = m.q !== c0.q ? 0 : m.clock, t0 = Date.now(), sc0 = play.putback ? 14 : 24;
+  var tick = function () {
+    var k = Math.min(1, (Date.now() - t0) / ms), clk = document.getElementById('m-clk'), sh = document.getElementById('m-shot');
+    if (clk) clk.textContent = UI.clockLabel(c0.q, Math.max(0, Math.round(c0.clock + (to - c0.clock) * k)));
+    if (sh) sh.textContent = Math.max(0, Math.ceil(sc0 - (play.dur || 0) * k));
+    if (k >= 1) clearInterval(L.clockTimer);
+  };
+  tick();
+  L.clockTimer = setInterval(tick, 120);
+};
+
 UI.flushPending = function () {
   var L = UI.live;
   if (!L || !L.pending) return;
+  clearInterval(L.clockTimer);
   var p = L.pending;
   L.pending = null;
   UI.pushEvents(p.evs);
@@ -247,7 +265,7 @@ UI.renderMatch = function () {
   L.paneTab = L.paneTab || 'feed';
   L.pick = null;
   document.getElementById('modal-root').innerHTML =
-    '<div class="match" style="--c0:' + m.side[0].color + ';--c1:' + m.side[1].color + '">' +
+    '<div class="match" style="--c0:' + UI.liftTeam(m.side[0].color) + ';--c1:' + UI.liftTeam(m.side[1].color) + '">' +
     '<div class="scoreboard" id="m-score"></div>' +
     '<div class="m-body">' +
     '<div class="m-left"><div class="court-wrap"><canvas id="m-court" aria-label="Vue 2D du terrain"></canvas></div><div class="m-bar" id="m-ctrl"></div></div>' +
@@ -273,15 +291,13 @@ UI.renderScore = function (bump) {
     return '<span class="to-pips" title="Temps morts restants : ' + n + '">' + dots + '</span>';
   };
   var bonus = function (i) { return m.teamFouls[1 - i] >= 4 ? '<span class="bonus-pill">BONUS</span>' : ''; };
-  var toast = el.querySelector('.sb-toast');
   el.innerHTML = '<div class="sb">' +
     '<div class="t">' + UI.teamBadge(t[0], true) + '<div class="t-meta"><span class="nm">' + UI.esc(t[0].short) + ' <span class="small muted hide-sm">' + UI.esc(t[0].nick) + '</span>' + bonus(0) + '</span>' + toDots(0) + '</div></div>' +
     '<div class="score h">' + sc(0) + '</div>' +
-    '<div class="clock"><b>' + (m.finished ? 'FIN' : UI.clockLabel(m.q, Math.max(0, Math.round(m.clock)))) + '</b><span>Fautes ' + m.teamFouls[0] + '–' + m.teamFouls[1] + '</span></div>' +
+    '<div class="clock"><b id="m-clk">' + (m.finished ? 'FIN' : UI.clockLabel(m.q, Math.max(0, Math.round(m.clock)))) + '</b><span><i id="m-shot" class="shot" title="Horloge des 24 secondes">24</i> · Fautes ' + m.teamFouls[0] + '–' + m.teamFouls[1] + '</span></div>' +
     '<div class="score a">' + sc(1) + '</div>' +
     '<div class="t away"><div class="t-meta" style="align-items:flex-end"><span class="nm">' + bonus(1) + '<span class="small muted hide-sm">' + UI.esc(t[1].nick) + '</span> ' + UI.esc(t[1].short) + '</span>' + toDots(1) + '</div>' + UI.teamBadge(t[1], true) + '</div></div>' +
     UI.momentumBar(m);
-  if (toast) el.appendChild(toast);
 };
 
 // Jauge de momentum : fine bande sous le scorebug, chaque équipe pousse depuis son côté.
@@ -293,7 +309,7 @@ UI.momentumBar = function (m) {
 
 // Confirmation d'une consigne, affichée sous le scorebug sans bloquer le jeu.
 UI.sbToast = function (msg) {
-  var el = document.getElementById('m-score');
+  var el = document.querySelector('.m-left');
   if (!el) return;
   var old = el.querySelector('.sb-toast');
   if (old) old.remove();
@@ -583,6 +599,7 @@ UI.changes.mAuto = function (el) { UI.live.m.auto[UI.live.m.user] = el.checked; 
 UI.finishMatch = function () {
   var L = UI.live, g = UI.g, m = L.m, fx = L.fx;
   clearTimeout(L.timer);
+  clearInterval(L.clockTimer);
   if (L.court) { L.court.destroy(); L.court = null; }
   BM.applyResult(g, fx, m);
   UI.save();
@@ -599,7 +616,7 @@ UI.finishMatch = function () {
     '<div class="card wide"><div class="vs"><div class="t">' + UI.teamBadge(m.side[0]) + UI.esc(m.side[0].name) + '</div>' +
     '<div class="mid" style="color:var(--text);font-size:26px">' + m.score[0] + ' – ' + m.score[1] + '</div><div class="t">' + UI.teamBadge(m.side[1]) + UI.esc(m.side[1].name) + '</div></div>' +
     UI.quarterTable(fx.qPts, m.side[0], m.side[1], m.score[0], m.score[1]) +
-    (mvp ? '<div class="mvp-line">' + BM.portrait(mvp, g.teams[mvp.teamId], 44) + '<p class="small" style="margin:0">Homme du match · <b>note ' + m.ratings[mvp.id].toFixed(1) + '</b><br><b>' + UI.esc(BM.fullName(mvp)) + '</b>' +
+    (mvp ? '<div class="mvp-line">' + BM.portrait(mvp, g.teams[mvp.teamId], 44) + '<p class="small" style="margin:0">Homme du match · <b>note ' + UI.dec(m.ratings[mvp.id]) + '</b><br><b>' + UI.esc(BM.fullName(mvp)) + '</b>' +
       (mvpBox ? ' · <span class="muted">' + mvpBox.pts + ' pts, ' + (mvpBox.oreb + mvpBox.dreb) + ' reb, ' + mvpBox.ast + ' pd</span>' : '') + '</p></div>' : '') + '</div>' +
     UI.whyCard(fx.why) +
     UI.matchAnalyticsCard(fx, m.side[0], m.side[1]) +

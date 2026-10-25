@@ -50,7 +50,8 @@ var BM = globalThis.BM = globalThis.BM || {};
     var ratio = (H + MARGIN * 2) / (W + MARGIN * 2);
     // En paysage ou bureau, le terrain doit aussi tenir en hauteur (variable CSS --fit-h posée par la mise en page).
     if (cs.getPropertyValue('--fit-h').trim() === '1') {
-      var availH = par.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      var host = par.parentNode, bar = host && host.querySelector('.m-bar');
+      var availH = (host && bar ? host.clientHeight - bar.offsetHeight : par.clientHeight) - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
       if (availH > 80 && w * ratio > availH) w = availH / ratio;
     }
     var h = w * ratio;
@@ -745,14 +746,48 @@ var BM = globalThis.BM = globalThis.BM || {};
       x.restore();
     }
 
-    // Joueurs.
-    var r = 2.35 * s;
+    // Bandeau de lecture (dessiné sous les joueurs pour ne jamais masquer le porteur) : phase en cours à gauche, système contre défense à droite.
+    var phase = this.skip ? 'Accéléré' : this.phaseAt(u);
+    if (phase || this.label) {
+      var fs = Math.max(10, Math.round(1.55 * s)), padX = fs * 0.6, hh = fs * 1.7, yTop = P(0.6);
+      x.font = '700 ' + fs + 'px Roboto, system-ui, sans-serif';
+      x.textBaseline = 'middle';
+      if (phase) {
+        var pw = x.measureText(phase.toUpperCase()).width + padX * 2;
+        x.fillStyle = 'rgba(6,16,28,0.82)'; x.fillRect(P(0.6), yTop, pw, hh);
+        x.fillStyle = '#ffffff'; x.textAlign = 'left'; x.fillText(phase.toUpperCase(), P(0.6) + padX, yTop + hh / 2);
+      }
+      if (this.label && !this.skip) {
+        x.font = '500 ' + fs + 'px Roboto, system-ui, sans-serif';
+        var lw = x.measureText(this.label).width + padX * 2;
+        x.fillStyle = 'rgba(6,16,28,0.7)'; x.fillRect(P(W - 0.6) - lw, yTop, lw, hh);
+        x.fillStyle = '#d6dbe4'; x.textAlign = 'right'; x.fillText(this.label, P(W - 0.6) - padX, yTop + hh / 2);
+      }
+    }
+
+    // Joueurs : taille plafonnée sur grand écran, pions écartés quand ils se chevauchent, porteur dessiné en dernier.
+    var ps = Math.min(s, 6.2 * (window.devicePixelRatio || 1)), r = 2.35 * ps;
     var onIds = m.on[0].concat(m.on[1]);
-    Object.keys(this.pos).forEach(function (key) {
-      var id = +key, p = self.pos[id], pl = g.players[id];
-      if (!pl) return;
-      var side = self.side(id), col = self.teamColor(side), offCourt = p.y > H + 1;
-      if (offCourt && onIds.indexOf(id) < 0) return;
+    var shown = Object.keys(this.pos).map(Number).filter(function (id) {
+      var p = self.pos[id];
+      return g.players[id] && p && !(p.y > H + 1 && onIds.indexOf(id) < 0);
+    });
+    var disp = {}, minD = (2 * r * 1.02) / s;
+    shown.forEach(function (id) { disp[id] = { x: self.pos[id].x, y: self.pos[id].y }; });
+    for (var it = 0; it < 6; it++) {
+      for (var i1 = 0; i1 < shown.length; i1++) for (var i2 = i1 + 1; i2 < shown.length; i2++) {
+        var a = disp[shown[i1]], b = disp[shown[i2]], dx = b.x - a.x, dy = b.y - a.y, dd = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        if (dd < minD) {
+          var push = (minD - dd) / 2, ux = dx / dd, uy = dy / dd;
+          if (shown[i1] !== holder) { a.x -= ux * push; a.y -= uy * push; } else { b.x += ux * push; b.y += uy * push; }
+          if (shown[i2] !== holder) { b.x += ux * push; b.y += uy * push; } else { a.x -= ux * push; a.y -= uy * push; }
+        }
+      }
+    }
+    shown.sort(function (a, b) { return (a === holder) - (b === holder); });
+    shown.forEach(function (id) {
+      var p = disp[id], pl = g.players[id];
+      var side = self.side(id), col = self.teamColor(side);
       var cx = P(p.x), cy = P(p.y);
       x.globalAlpha = 1;
 
@@ -763,54 +798,54 @@ var BM = globalThis.BM = globalThis.BM || {};
       // Anneau d'endurance discret autour du joueur.
       var stam = BM.clamp((m.en && m.en[id] !== undefined ? m.en[id] : 100) / 100, 0.08, 1);
       x.beginPath();
-      x.arc(cx, cy, r + s * 0.35, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * stam);
-      x.strokeStyle = stam > 0.65 ? 'rgba(46,204,113,0.55)' : stam > 0.38 ? 'rgba(243,156,18,0.65)' : 'rgba(231,76,60,0.75)';
-      x.lineWidth = Math.max(1.2, s * 0.22);
+      x.arc(cx, cy, r + ps * 0.35, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * stam);
+      x.strokeStyle = stam > 0.65 ? 'rgba(46,204,113,0.7)' : stam > 0.38 ? 'rgba(243,156,18,0.8)' : 'rgba(231,76,60,0.85)';
+      x.lineWidth = Math.max(1.2, ps * 0.22);
       x.stroke();
 
-      // Porteur du ballon : anneau doré lumineux.
+      // Porteur du ballon : anneau doré.
       if (id === holder) {
-        x.strokeStyle = '#ffd43b'; x.lineWidth = Math.max(2, s * 0.38);
-        x.beginPath(); x.arc(cx, cy, r + s * 0.72, 0, Math.PI * 2); x.stroke();
+        x.strokeStyle = '#f2c94c'; x.lineWidth = Math.max(2, ps * 0.38);
+        x.beginPath(); x.arc(cx, cy, r + ps * 0.72, 0, Math.PI * 2); x.stroke();
       }
-      // Joueur en feu : halo orange pulsé.
+      // Joueur en feu : anneau orange pulsé.
       if (m.isHot(id)) {
         var pulse = 0.6 + 0.4 * Math.sin(now / 140);
-        x.save(); x.shadowColor = '#ff6a00'; x.shadowBlur = s * 3.2 * pulse;
-        x.fillStyle = 'rgba(255,106,0,' + (0.36 * pulse) + ')';
-        x.beginPath(); x.arc(cx, cy, r + s * 1.25, 0, Math.PI * 2); x.fill(); x.restore();
+        x.strokeStyle = 'rgba(255,122,26,' + (0.5 + 0.4 * pulse) + ')'; x.lineWidth = Math.max(1.5, ps * 0.3);
+        x.beginPath(); x.arc(cx, cy, r + ps * 1.15, 0, Math.PI * 2); x.stroke();
       }
       // Mode carrière : ton joueur porte un anneau cyan et son nom en permanence.
       var mine = m.career && m.career.pid === id;
       if (mine) {
-        x.strokeStyle = '#3bc9db'; x.lineWidth = Math.max(2, s * 0.45);
-        x.beginPath(); x.arc(cx, cy, r + s * 1.15, 0, Math.PI * 2); x.stroke();
+        x.strokeStyle = '#3bc9db'; x.lineWidth = Math.max(2, ps * 0.45);
+        x.beginPath(); x.arc(cx, cy, r + ps * 1.15, 0, Math.PI * 2); x.stroke();
       }
 
-      // Pastille maillot avec léger relief.
+      // Pastille maillot.
       x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2);
       if (side === 0) { x.fillStyle = col; x.fill(); x.strokeStyle = '#ffffff'; }
       else { x.fillStyle = '#f8f9fa'; x.fill(); x.strokeStyle = col; }
-      x.lineWidth = Math.max(1.5, s * 0.32); x.stroke();
+      x.lineWidth = Math.max(1.5, ps * 0.32); x.stroke();
 
-      // Initiales + poste.
+      // Initiales.
       x.fillStyle = side === 0 ? '#ffffff' : col;
-      x.font = '800 ' + Math.round(2.05 * s) + 'px Roboto, system-ui, sans-serif';
+      x.font = '800 ' + Math.round(2.05 * ps) + 'px Roboto, system-ui, sans-serif';
       x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.fillText(pl.last.charAt(0) + pl.first.charAt(0), cx, cy + s * 0.08);
+      x.fillText(pl.last.charAt(0) + pl.first.charAt(0), cx, cy + ps * 0.08);
 
       // 1re option choisie par le coach : étoile dorée.
       if (m.firstOpt[side] === id) {
-        star(x, cx + r * 0.95, cy - r * 0.9, s * 1.1);
+        star(x, cx + r * 0.95, cy - r * 0.9, ps * 1.1);
         x.fillStyle = '#f2c94c'; x.fill();
-        x.strokeStyle = 'rgba(0,0,0,0.6)'; x.lineWidth = Math.max(0.8, s * 0.12); x.stroke();
+        x.strokeStyle = 'rgba(0,0,0,0.6)'; x.lineWidth = Math.max(0.8, ps * 0.12); x.stroke();
       }
-      // Étiquette nom sous/sur le porteur de balle ou le joueur incarné.
+      // Nom du porteur (ou du joueur incarné) sur une pastille sombre, lisible sur le parquet.
       if (id === holder || mine) {
-        x.font = '700 ' + Math.round(1.95 * s) + 'px Roboto, system-ui, sans-serif';
-        x.fillStyle = '#fff'; x.strokeStyle = 'rgba(0,0,0,0.72)'; x.lineWidth = s * 0.45;
-        x.strokeText(pl.last, cx, cy - r - s * 1.35);
-        x.fillText(pl.last, cx, cy - r - s * 1.35);
+        x.font = '700 ' + Math.max(10, Math.round(1.85 * ps)) + 'px Roboto, system-ui, sans-serif';
+        var tw = x.measureText(pl.last).width + ps * 1.2, th = ps * 2.3, ty = cy - r - ps * 1.6;
+        var tx = BM.clamp(cx, tw / 2 + 2, self.canvas.width - tw / 2 - 2);
+        x.fillStyle = 'rgba(6,16,28,0.86)'; x.fillRect(tx - tw / 2, ty - th / 2, tw, th);
+        x.fillStyle = '#ffffff'; x.fillText(pl.last, tx, ty + ps * 0.05);
       }
     });
 
@@ -862,24 +897,6 @@ var BM = globalThis.BM = globalThis.BM || {};
       return true;
     });
 
-    // Bandeau de lecture : phase en cours à gauche, système contre défense à droite.
-    var phase = this.skip ? 'Accéléré' : this.phaseAt(u);
-    if (phase || this.label) {
-      var fs = Math.max(10, Math.round(1.55 * s)), padX = fs * 0.6, hh = fs * 1.7, yTop = P(0.6);
-      x.font = '700 ' + fs + 'px Roboto, system-ui, sans-serif';
-      x.textBaseline = 'middle';
-      if (phase) {
-        var pw = x.measureText(phase.toUpperCase()).width + padX * 2;
-        x.fillStyle = 'rgba(6,16,28,0.82)'; x.fillRect(P(0.6), yTop, pw, hh);
-        x.fillStyle = '#ffffff'; x.textAlign = 'left'; x.fillText(phase.toUpperCase(), P(0.6) + padX, yTop + hh / 2);
-      }
-      if (this.label && !this.skip) {
-        x.font = '500 ' + fs + 'px Roboto, system-ui, sans-serif';
-        var lw = x.measureText(this.label).width + padX * 2;
-        x.fillStyle = 'rgba(6,16,28,0.7)'; x.fillRect(P(W - 0.6) - lw, yTop, lw, hh);
-        x.fillStyle = '#d6dbe4'; x.textAlign = 'right'; x.fillText(this.label, P(W - 0.6) - padX, yTop + hh / 2);
-      }
-    }
     x.restore();
   };
 

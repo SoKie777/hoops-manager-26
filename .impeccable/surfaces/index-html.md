@@ -23,5 +23,11 @@ FORM: Canon (category standard), chosen by the user over the roll; reference pro
 SIGNATURE INTERACTION: Quick instructions during the live match: tap a chip → a compact picker opens in the side strip, the choice applies from the next possession, and a scorebug toast confirms it. Motion grammar: short 150–200ms ease-out slides and fades. The court plays every possession phase (bring-up, set, screen, rotation, shot, rebound) at the chosen speed.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 
+## Adaptations (cited)
+- The 200px right context panel is dropped at every width: at 820×380 the 13-column squad table and two-column pages need the room, and FM26 Mobile itself has no persistent context panel. Next match and form live on Home instead.
+- The 120px nav column becomes a 72px icon-over-label rail at 820×380 (landscape height lock), and a 176px labelled rail at ≥900px.
+- Interaction accent is a single blue (#3d8bfd) for primary buttons, selected tabs and pickers, kept separate from the club colour so selection reads the same for all 30 franchises.
+- Dark club colours are lifted to ≥1.9:1 against the ground so the top bar and selected nav always read.
+
 ## Unresolved
 FM26 loop inventory (step 1, REA) will extend the loop later. Dynamic analysis needs the user's phone over adb.
