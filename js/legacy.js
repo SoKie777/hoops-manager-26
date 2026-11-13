@@ -425,49 +425,7 @@ var BM = globalThis.BM = globalThis.BM || {};
         if (tone === 'praise') { rivalTeam.rep = clamp(rivalTeam.rep + 0.2, 20, 99); out.push('respect affiché, rivalité apaisée'); }
         else if (tone === 'shout') { out.push('message reçu dans le camp adverse'); }
         else if (tone === 'callout') { BM.roster(g, rivalTeam).forEach(function (x) { x.morale = clamp(x.morale - 1, 0, 100); }); me.fans += Math.round(BM.fansOf(me) * 0.002); out.push('petit coup de pression, les fans réagissent'); }
-        else { me.balance -= 25; g.board.confidence = clamp(g.board.confidence - 1, 0, 100); out.push('la ligue ouvre un dossier disciplinaire : amende de 25 k
-      } else {
-        if (sign < 0) { g.board.confidence = clamp(g.board.confidence + 1, 0, 100); roster.forEach(function (x) { BM.relAdd(g, x, 1); }); out.push('la direction et le vestiaire apprécient que tu assumes'); }
-        else { roster.forEach(function (x) { BM.relAdd(g, x, -1); }); out.push('le vestiaire trouve ça un peu facile'); }
-      }
-      BM.post(g, who, handle, fill(MY_POST[tone][target] || MY_POST[tone].team, { M: R.star ? BM.shortName(g.players[R.star]) : '' }), true, Math.round(BM.fansOf(me) * 0.01 * likesMul + 200));
-    }
-    return 'Publié. ' + out.join(', ') + '.';
-  };
-
-  // ==================================================================== relation coach-joueur (mode Manager)
-  BM.relOf = function (p) { return p.rel === undefined ? 50 : p.rel; };
-  BM.relAdd = function (g, p, x) { p.rel = clamp(BM.relOf(p) + x, 0, 100); };
-  BM.relLabel = function (v) { return v >= 75 ? 'Excellente' : v >= 60 ? 'Bonne' : v >= 40 ? 'Correcte' : v >= 25 ? 'Tendue' : 'Rompue'; };
-
-  // ==================================================================== envies des joueurs (mercato)
-  BM.WANTS = {
-    titre: { l: 'Veut jouer le titre' }, argent: { l: 'Veut le plus gros contrat' }, temps: { l: 'Veut du temps de jeu' },
-    star: { l: 'Veut être la 1re option' }, dev: { l: 'Veut progresser avec un bon formateur' }, mentor: { l: 'Veut encadrer des jeunes' }
-  };
-  BM.wantOf = function (p) {
-    if (p.want) return p.want;
-    var h = (p.id * 2654435761) >>> 0, pick = function (list) { return list[h % list.length]; };
-    p.want = p.age >= 31 ? pick(['titre', 'argent', 'mentor', 'titre']) : p.age <= 23 ? pick(['dev', 'temps', 'argent', 'temps']) : BM.ovr(p) >= 82 ? pick(['star', 'titre', 'argent']) : pick(['temps', 'argent', 'titre', 'star']);
-    return p.want;
-  };
-  BM.wantFit = function (g, p, team) {
-    var w = BM.wantOf(p), better = BM.roster(g, team).filter(function (x) { return x !== p && BM.ovrRaw(x) > BM.ovrRaw(p); }).length;
-    var games = team.record.w + team.record.l, wp = games ? team.record.w / games : 0.5, v = 0, ok;
-    if (w === 'titre') v = (team.rep - 60) / 120 + (wp - 0.5) * 0.3;
-    else if (w === 'argent') v = -0.04;
-    else if (w === 'temps') v = better <= 4 ? 0.15 : better >= 8 ? -0.25 : -0.05;
-    else if (w === 'star') v = better === 0 ? 0.25 : better === 1 ? 0 : -0.2;
-    else if (w === 'dev') { var a = BM.staffOf ? BM.staffOf(g, 'assistant')[0] : null; v = a ? (a.skills.dev - 11) / 40 : -0.1; }
-    else if (w === 'mentor') { var r = BM.roster(g, team), avg = r.reduce(function (s, x) { return s + x.age; }, 0) / Math.max(1, r.length); v = avg < 25.5 ? 0.2 : -0.05; }
-    v = clamp(v, -0.3, 0.3);
-    ok = v >= 0.05 ? 'good' : v <= -0.1 ? 'bad' : '';
-    return { w: w, l: BM.WANTS[w].l, v: v, cls: ok };
-  };
-})();
-); }
-      } else if (target === 'refs') {
-        if (sign < 0) { me.balance -= 25; g.board.confidence = clamp(g.board.confidence - 2, 0, 100); out.push('amende de 25 k$, la direction n\'apprécie pas'); } else out.push('la ligue apprécie');
+        else { me.balance -= 25; g.board.confidence = clamp(g.board.confidence - 1, 0, 100); out.push('la ligue ouvre un dossier disciplinaire et inflige une amende de vingt-cinq mille dollars'); }
       } else {
         if (sign < 0) { g.board.confidence = clamp(g.board.confidence + 1, 0, 100); roster.forEach(function (x) { BM.relAdd(g, x, 1); }); out.push('la direction et le vestiaire apprécient que tu assumes'); }
         else { roster.forEach(function (x) { BM.relAdd(g, x, -1); }); out.push('le vestiaire trouve ça un peu facile'); }
