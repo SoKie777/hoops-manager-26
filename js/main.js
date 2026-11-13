@@ -61,7 +61,7 @@ UI.showGameOver = function (s) {
   UI.modalLocked = true;
   UI.modal('<div class="modal-h"><h2>Fin de l\'aventure</h2></div>' +
     '<p>La direction de ' + UI.esc(UI.g.teams[UI.g.userTeam].name) + ' a décidé de se séparer de vous' + (s ? ' à l\'issue de la saison ' + s.season : '') + '.</p>' +
-    '<button class="btn primary block" data-act="restart">Nouvelle carrière</button>');
+    '<button class="btn primary block" data-act="restart">Nouvelle partie</button>');
 };
 
 UI.actions.restart = function () {
@@ -94,6 +94,7 @@ UI.actions.newGame = function () {
 UI.actions.loadSave = function () {
   try {
     UI.g = BM.deserialize(UI.store.get(BM.SAVE_KEY));
+    if (UI.g.mode === 'career') { UI.g = null; UI.toast('Cette sauvegarde utilise Ma Carrière, un mode qui n’est plus disponible.'); return; }
     UI.render();
   } catch (e) {
     UI.toast('Sauvegarde illisible.');
@@ -107,6 +108,7 @@ UI.changes.importFile = function (el) {
   reader.onload = function () {
     try {
       UI.g = BM.deserialize(reader.result);
+      if (UI.g.mode === 'career') { UI.g = null; UI.toast('Cette sauvegarde utilise Ma Carrière, un mode qui n’est plus disponible.'); return; }
       UI.save();
       UI.render();
       UI.toast('Partie importée.');
