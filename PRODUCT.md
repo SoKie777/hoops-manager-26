@@ -26,7 +26,7 @@ Two things together, which neighbouring basketball managers don't offer:
 
 ## Capabilities and Constraints
 - **Manager mode**: run one of 30 franchises (roster, half-court tactics board, transfers with AI trade offers, scouting, development, locker room, draft, press, board objectives, playoffs bracket).
-- **Ma Carrière mode**: a 19-year-old prospect goes through NCAA / EuroLeague / G League Ignite, the combine and the draft, then an NBA career; on retirement the same save switches to coaching.
+- **Social layer**: post-match media coverage, fan reactions, player praise, rivalry heat, trash talk, and a league-wide results roundup after each matchday.
 - **League data**: real 2026-27 NBA rosters and contracts (from Basketball-Reference) with NBA 2K27 ratings, moved to African cities with NBA nicknames (*Kinshasa Lakers*, *Dakar Spurs*…). Current practice is surnames with one doubled vowel and procedurally generated portraits; no real photos.
 - **Live match**: a 2D court with system-specific movement, a TV scorebug, a momentum bar, a shot chart and a game-flow chart, and synthesized WebAudio sounds.
 - **Hard constraints**:
