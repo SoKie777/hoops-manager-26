@@ -330,7 +330,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     }
   };
 
-  // Publications générées après un match de l'utilisateur. focus = joueur mis en avant (ton joueur en carrière, le meilleur marqueur en Manager).
+  // Publications générées après un match de l'utilisateur. focus = meilleur marqueur de la franchise.
   BM.socialAfterMatch = function (g, fx, m, focusId) {
     var r = g.rng, userSide = fx.home === g.userTeam ? 0 : 1;
     var team = m.side[userSide], opp = m.side[1 - userSide], won = m.score[userSide] > m.score[1 - userSide];
