@@ -71,7 +71,7 @@ BM.updateReputations = function (g) {
 };
 
 // Mode carrière : la franchise du joueur est gérée par l'IA comme les autres.
-BM.isCareer = function (g) { return g.mode === 'career'; };
+BM.isCareer = function (g) { return false; }; // Mode carrière supprimé en v2.1 — on garde le stub pour ne pas casser les vieilles sauvegardes.
 BM.managed = function (g, team) { return !!team && g.mode !== 'career' && team.id === g.userTeam; };
 BM.myTeam = function (g) { return g.userTeam >= 0 ? g.teams[g.userTeam] : null; };
 
@@ -231,7 +231,7 @@ BM.applyResult = function (g, fx, m) {
 
   if (BM.legacyAfterMatch) BM.legacyAfterMatch(g, fx, m);
   if (fx.home === g.userTeam || fx.away === g.userTeam) {
-    if (BM.isCareer(g)) { if (BM.careerAfterTeamMatch) BM.careerAfterTeamMatch(g, fx, m); }
+    if (BM.isCareer(g)) { if (BM.careerAfterTeamMatch) BM.careerAfterTeamMatch(g, fx, m); } /* mode carrière supprimé */
     else BM.afterUserMatch(g, fx, m);
   }
 };

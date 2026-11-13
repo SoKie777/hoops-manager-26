@@ -1,6 +1,19 @@
 var BM = globalThis.BM = globalThis.BM || {};
 var UI = BM.UI;
 
+// ==================================================================== v2.1 — Wrap pre-match pour taunts de rivalité
+// On ne peut pas wrapp UI.preMatch directement dans js/social.js (UI n'est pas encore défini).
+// Donc on le fait ici, après le chargement de ui.js.
+(function wrapPreMatch() {
+  if (!UI.preMatch || UI._preMatchWrapped) return;
+  UI._preMatchWrapped = true;
+  var legacy = UI.preMatch;
+  UI.preMatch = function (fx) {
+    if (BM.rivalryPreMatchTaunt && UI.g) BM.rivalryPreMatchTaunt(UI.g, fx);
+    legacy(fx);
+  };
+})();
+
 // ==================================================================== avancer dans le temps
 UI.cont = function (fastForward) {
   if (UI.live || !UI.g) return;

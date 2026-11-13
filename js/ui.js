@@ -134,7 +134,6 @@ UI.icon = function (k, cls) {
 UI.render = function () {
   var app = document.getElementById('app');
   if (!UI.g) { app.innerHTML = UI.startScreen(); UI.afterRender(); return; }
-  if (UI.g.mode === 'career') { UI.cRender(); return; }
   var g = UI.g, me = g.teams[g.userTeam];
   // Animation d'entrée seulement au changement d'écran (pas à chaque tri ou réglage).
   var screenKey = UI.tab + '/' + (UI.sub[UI.tab] || '');
@@ -212,21 +211,18 @@ UI.startScreen = function () {
           x.rank + 'e effectif · ' + UI.esc(x.star) + '</small></span></button>';
       }).join('') + '</div>';
   };
-  var mode = UI.startMode || 'manager';
+  var mode = 'manager'; // Mode carrière supprimé en v2.1
   return '<div class="start">' +
     '<div class="start-h">' + UI.ballSvg() + '<h1>Hoops Manager 26</h1><p>Effectifs NBA réels 2026-27, version africaine.</p></div>' +
     '<div class="page">' +
     (hasSave ? '<div class="card wide"><div class="card-h"><h2>Reprendre</h2></div><button class="btn primary block" data-act="loadSave">Charger la partie sauvegardée</button></div>' : '') +
-    '<div class="modepick"><button data-act="startMode" data-v="manager" class="' + (mode === 'manager' ? 'on' : '') + '"><b>Manager</b><span>Tu diriges une franchise : effectif, tactique, mercato, draft.</span></button>' +
-    '<button data-act="startMode" data-v="career" class="' + (mode === 'career' ? 'on' : '') + '"><b>Ma Carrière</b><span>Tu es un joueur : de prospect de 19 ans à la retraite… puis coach.</span></button></div>' +
-    (mode === 'career' ? UI.careerCreate() :
     '<div class="card" style="display:grid;gap:12px">' +
     '<h2>Nouvelle partie</h2>' +
     '<div class="field"><label for="mgr">Nom du coach</label><input type="text" id="mgr" maxlength="30" value="' + UI.esc(UI.mgrName || '') + '" placeholder="Votre nom"></div>' +
     '<div class="field"><label>Choisissez votre club</label>' + confBlock('E') + confBlock('W') + '</div>' +
     '<p class="small muted" style="margin:0">Objectif de la direction pour <b>' + UI.esc(t.city + ' ' + t.nick) + '</b> : ' + BM.OBJECTIVES[obj] + '.</p>' +
     '<button class="btn primary block" data-act="newGame">Commencer</button>' +
-    '</div>') +
+    '</div>' +
     '<div class="card"><div class="card-h"><h2>Importer</h2></div><p class="small muted" style="margin-top:0">Charger un fichier de sauvegarde exporté (.json).</p>' +
     '<input type="file" accept="application/json,.json" data-change="importFile"></div>' +
     '</div></div>';
@@ -322,9 +318,10 @@ UI.actions.openMsg = function (el) {
   var g = UI.g, m = g.inbox.find(function (x) { return x.id === +el.dataset.id; });
   if (!m) return;
   m.read = true;
+  var cardCls = m.kind === 'taunt' ? ' inbox-msg taunt' : m.kind === 'praise' ? ' inbox-msg praise' : '';
   UI.modal('<div class="modal-h"><h2>' + UI.esc(m.title) + '</h2><button class="btn sm x" data-act="closeModal">Fermer</button></div>' +
     '<p class="small muted" style="margin:0">' + UI.esc(BM.dateLabel(g, m.day)) + '</p>' +
-    '<div class="card" style="white-space:pre-line">' + UI.esc(m.body) + (m.resolved ? '\n\n' + UI.esc(m.resolved) : '') + '</div>' +
+    '<div class="card' + cardCls + '" style="white-space:pre-line">' + UI.esc(m.body) + (m.resolved ? '\n\n' + UI.esc(m.resolved) : '') + '</div>' +
     (m.actions ? '<div style="display:grid;gap:8px">' + m.actions.map(function (a, i) {
       return '<button class="btn' + (i === 0 && !a.hint ? ' primary' : '') + '" style="text-align:left" data-act="msgAction" data-id="' + m.id + '" data-i="' + i + '">' + UI.esc(a.label) +
         (a.hint ? '<br><span class="small muted" style="font-weight:500">' + UI.esc(a.hint) + '</span>' : '') + '</button>';
@@ -1397,11 +1394,30 @@ UI.actions.proposeTrade = function () {
 
 // ==================================================================== médias, mémoire de la ligue et héritage (voir js/legacy.js)
 UI.feedHtml = function (list, n) {
+  var g = UI.g;
   if (!list || !list.length) return '<p class="small muted" style="margin:0">Fil vide pour l\'instant : il se remplit après chaque match.</p>';
-  return list.slice(0, n || 12).map(function (f) {
-    return '<div class="post' + (f.mine ? ' mine' : '') + '"><div class="av">' + UI.esc(f.who.charAt(0)) + '</div><div style="min-width:0"><b>' + UI.esc(f.who) + '</b> <span class="muted small">' + UI.esc(f.h) + '</span>' +
-      '<p style="margin:2px 0 0">' + UI.esc(f.t) + '</p><span class="small muted">' + (BM.fmtN ? BM.fmtN(f.likes) : f.likes) + ' j\'aime</span></div></div>';
-  }).join('');
+  // Infère le type d'auteur à partir du nom/handle pour appliquer la bonne variante CSS.
+  var classify = function (f) {
+    if (f.mine) return 'me';
+    if (/^(Fan adverse|Fan|Fan adverse )/.test(f.who)) return f.who.indexOf('adverse') >= 0 ? 'opp-fan' : 'fan';
+    if (/@courtsidetv|@hoopsdaily|@bleacher|@rep-league|@h-daily|@h-courtside|@h-bleacher|@h-rep/.test(f.h || '')) return 'media';
+    if (/^Coach /.test(f.who)) return 'coach';
+    if (f.who === 'Courtside TV' || f.who === 'Hoops Daily' || f.who === 'Bleacher Africa' || f.who === 'Rep League') return 'media';
+    // Si l'auteur est un coéquipier (prénom + nom = joueur)
+    if (g && g.players) {
+      var k = Object.keys(g.players).find(function (id) { return BM.fullName(g.players[id]) === f.who && g.players[id].teamId === g.userTeam; });
+      if (k) return 'mate';
+    }
+    return 'fan';
+  };
+  return '<div class="social-feed">' + list.slice(0, n || 12).map(function (f) {
+    var cls = classify(f);
+    // Halo si le post mentionne une rivalité (heuristique très simple).
+    var heat = /rival|RIVALRY|EXPLOIT|NUIT HISTORIQUE|TRIPLE-DOUBLE/.test(f.t || '') ? ' heat-high' : '';
+    var praise = /exploit|série|intouchable|historique|triple-double/i.test(f.t || '') ? ' praise' : '';
+    return '<article class="post ' + cls + heat + praise + '"><div class="av">' + UI.esc(f.who.charAt(0)) + '</div><div style="min-width:0"><b>' + UI.esc(f.who) + '</b> <span class="muted small">' + UI.esc(f.h) + '</span>' +
+      '<p style="margin:2px 0 0">' + UI.esc(f.t) + '</p><span class="small muted">' + (BM.fmtN ? BM.fmtN(f.likes) : f.likes) + ' j\'aime</span></div></article>';
+  }).join('') + '</div>';
 };
 UI.newsHtml = function (g, n) {
   var list = (g.news || []).slice(0, n || 20);
@@ -1456,11 +1472,126 @@ UI.actions.replyPost = function (el) {
 };
 UI.actions.replySkip = function () { UI.g.reply = null; var card = document.getElementById('reply-card'); if (card) card.remove(); UI.save(); };
 
+// ==================================================================== v2.1 — Scores de la nuit (panneau post-match)
+UI.nightScoresCard = function (g, fx) {
+  var ns = g.lastNightScores;
+  if (!ns || ns.fxId !== fx.id || !ns.items || !ns.items.length) return '';
+  var me = g.teams[g.userTeam];
+  var html = '<div class="card wide"><div class="card-h"><h3>Scores de la nuit</h3>' +
+    '<span class="small muted">Pendant que vous jouiez, le reste de la ligue a enchaîné.</span></div>' +
+    '<div class="night-scores"><div class="ns-list">';
+  html += ns.items.map(function (it) {
+    var home = it.home, away = it.away, homeWon = it.homeWon;
+    var cls = 'score-row';
+    if (it.upset) cls += ' upset';
+    if (it.ot) cls += ' ot';
+    if (it.rival) cls += ' rivalry';
+    if (it.userRivalLost) cls += ' rival-lost';
+    var badges = '';
+    if (it.ot) badges += '<span class="ns-badge ot">OT</span>';
+    if (it.upset) badges += '<span class="ns-badge upset">UPSET</span>';
+    if (it.rival) badges += '<span class="ns-badge rivalry">RIVALITÉ</span>';
+    if (it.inUserConf) badges += '<span class="ns-chip conf">' + UI.esc(me.conf) + '</span>';
+    if (it.userRivalLost) badges += '<span class="ns-good-note">Bonne nouvelle</span>';
+    var mvpLine = '';
+    if (it.mvp && it.mvpBox) {
+      mvpLine = '<span class="small muted">· ' + UI.esc(BM.shortName(it.mvp)) + ' ' + it.mvpBox.pts + 'pts</span>';
+    }
+    // score-box : gagnant en gras, perdant grisé
+    var homeScoreCls = homeWon ? 'winner' : 'loser', awayScoreCls = homeWon ? 'loser' : 'winner';
+    return '<div class="' + cls + '">' +
+      '<div class="team away">' + UI.teamBadge(away, true) + '<span class="name">' + UI.esc(away.short) + '</span></div>' +
+      '<div class="score-box"><span class="' + awayScoreCls + '">' + it.fx.as + '</span><span class="sep">–</span><span class="' + homeScoreCls + '">' + it.fx.hs + '</span></div>' +
+      '<div class="team home">' + UI.teamBadge(home, true) + '<span class="name">' + UI.esc(home.short) + '</span></div>' +
+      '<div class="badges">' + badges + mvpLine + '</div>' +
+      '</div>';
+  }).join('');
+  html += '</div>';
+  html += '<p class="small muted" style="margin:8px 0 0">Sélection automatique : upsets, prolongations, matchs de rivalité et impact sur votre conférence.</p>';
+  html += '</div></div>';
+  return html;
+};
+
+// ==================================================================== v2.1 — Headlines médiatiques
+UI.headlinesHtml = function (g) {
+  var list = (g.headlines || []).slice(0, 24);
+  if (!list.length) return '<div class="card wide"><h2>Presse</h2><p class="small muted" style="margin:0">Pas encore d\'articles : les premiers titres tombent après la première journée de matchs.</p></div>';
+  var outlets = BM.MEDIA_OUTLETS || {};
+  var html = '<div class="card wide"><div class="card-h"><h2>Presse africaine</h2><span class="small muted">' + list.length + ' articles</span></div>';
+  html += '<div class="media-headlines">';
+  html += list.map(function (h, i) {
+    var outlet = outlets[h.outlet] || { l: h.source, color: '#888', tag: 'h-default' };
+    var cls = 'headline ' + (outlet.tag || 'h-default');
+    if (i === 0) cls += ' day';
+    return '<article class="' + cls + '">' +
+      '<div class="h-source" style="color:' + outlet.color + '">' + UI.esc(outlet.l) + '</div>' +
+      '<h3 class="h-title">' + UI.esc(h.title) + '</h3>' +
+      (h.subtitle ? '<p class="h-sub">' + UI.esc(h.subtitle) + '</p>' : '') +
+      '<span class="h-date small muted">' + UI.esc(BM.dateLabel(g, h.day)) + '</span>' +
+      '</article>';
+  }).join('');
+  html += '</div></div>';
+  return html;
+};
+
+// ==================================================================== v2.1 — Rivalités
+UI.rivalriesHtml = function (g) {
+  if (!g.rivalries) return '<div class="card wide"><h2>Rivalités</h2><p class="small muted" style="margin:0">Aucune rivalité enregistrée.</p></div>';
+  var me = g.teams[g.userTeam];
+  var mine = BM.rivalriesOf ? BM.rivalriesOf(g, g.userTeam) : [];
+  // Toutes les rivalités de la ligue, triées par heat décroissante
+  var all = Object.keys(g.rivalries).map(function (k) { return g.rivalries[k]; }).sort(function (a, b) { return b.heat - a.heat; });
+  var html = '<div class="card wide"><div class="card-h"><h2>Mes rivalités</h2><span class="small muted">' + mine.length + '</span></div>';
+  if (!mine.length) html += '<p class="small muted" style="margin:0">Aucune rivalité déclarée pour les ' + UI.esc(me.nick) + '. Les derbies et confrontations tendues apparaîtront ici.</p>';
+  else {
+    html += '<div class="rivalry-list">' + mine.map(function (r) {
+      var oppId = r.a === g.userTeam ? r.b : r.b === g.userTeam ? r.a : null;
+      var opp = oppId !== null ? g.teams[oppId] : null;
+      if (!opp) return '';
+      var heat = r.heat, lbl = BM.rivalryLabel ? BM.rivalryLabel(heat) : '-';
+      var heatCls = heat >= 90 ? 'heat-high' : heat >= 75 ? 'heat-mid' : heat >= 50 ? 'heat-low' : '';
+      return '<div class="rivalry-item">' +
+        '<div class="rv-teams">' + UI.teamBadge(me, true) + ' <span class="muted">vs</span> ' + UI.teamBadge(opp, true) + '</div>' +
+        '<div class="rv-heat"><div class="bar ' + (heat >= 75 ? '' : heat >= 50 ? 'warn' : 'bad') + '"><i style="width:' + heat + '%"></i></div>' +
+        '<span class="small">' + lbl + ' (' + Math.round(heat) + ')</span></div>' +
+        '<div class="rv-meta"><span class="tag ' + heatCls + '">' + UI.esc(r.kind) + '</span>' +
+        (r.label ? '<span class="small muted">' + UI.esc(r.label) + '</span>' : '') + '</div>' +
+        '</div>';
+    }).join('') + '</div>';
+  }
+  html += '</div>';
+  // Top rivalités de la ligue entière (toutes équipes)
+  html += '<div class="card wide"><div class="card-h"><h2>Rivalités enflammées dans la ligue</h2><span class="small muted">Top 8</span></div>';
+  html += '<div class="table-wrap"><table><thead><tr><th>Rivalité</th><th>Type</th><th class="num">Heat</th><th>Statut</th></tr></thead><tbody>' +
+    all.slice(0, 8).map(function (r) {
+      var a = g.teams[r.a], b = g.teams[r.b];
+      var heat = r.heat, lbl = BM.rivalryLabel ? BM.rivalryLabel(heat) : '-';
+      var heatCls = heat >= 90 ? 'heat-high' : heat >= 75 ? 'heat-mid' : heat >= 50 ? 'heat-low' : '';
+      return '<tr><td>' + UI.teamBadge(a, true) + ' ' + UI.esc(a.short) + ' <span class="muted">vs</span> ' + UI.teamBadge(b, true) + ' ' + UI.esc(b.short) + '</td>' +
+        '<td><span class="tag ' + heatCls + '">' + UI.esc(r.kind) + '</span></td>' +
+        '<td class="num"><b>' + Math.round(heat) + '</b></td>' +
+        '<td class="small">' + lbl + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+  return html;
+};
+
+// ==================================================================== v2.1 — Badge "RIVALRY GAME" (utilisé par UI.preMatch si on veut l\'afficher)
+UI.rivalryBadge = function (g, fx) {
+  if (!BM.rivalryHeat) return '';
+  var opp = fx.home === g.userTeam ? fx.away : fx.home;
+  var heat = BM.rivalryHeat(g, g.userTeam, opp);
+  if (heat < 60) return '';
+  var cls = heat >= 90 ? 'heat-high' : heat >= 80 ? 'heat-mid' : 'heat-low';
+  return '<span class="rivalry-badge ' + cls + '">RIVALRY GAME</span>';
+};
+
 UI.tab_media = function () {
   var g = UI.g, me = g.teams[g.userTeam];
   UI.sub.media = UI.sub.media || 'feed';
-  var tabs = UI.subTabs('media', [['feed', 'Fil'], ['news', 'Actualités'], ['hof', 'Hall of Fame'], ['legacy', 'Héritage']]);
+  var tabs = UI.subTabs('media', [['feed', 'Fil'], ['press', 'Presse'], ['rivalries', 'Rivalités'], ['news', 'Actualités'], ['hof', 'Hall of Fame'], ['legacy', 'Héritage']]);
   if (UI.sub.media === 'news') return tabs + '<div class="card wide"><h2>Actualités de la ligue</h2>' + UI.newsHtml(g, 60) + '</div>';
+  if (UI.sub.media === 'press') return tabs + UI.headlinesHtml(g);
+  if (UI.sub.media === 'rivalries') return tabs + UI.rivalriesHtml(g);
   if (UI.sub.media === 'hof') return tabs + UI.hofHtml(g);
   if (UI.sub.media === 'legacy') {
     var k = BM.coachInit(g);
@@ -1470,7 +1601,7 @@ UI.tab_media = function () {
       '<div class="card wide"><h2>Accomplissements</h2>' + UI.achHtml(rows) + '</div>';
   }
   return tabs + '<div class="grid2"><div class="kpi"><b>' + BM.fmtN(BM.fansOf(me)) + '</b><span>Fans des ' + UI.esc(me.nick) + '</span></div><div class="kpi"><b>' + (g.feed || []).filter(function (f) { return f.mine; }).length + '</b><span>Tes publications</span></div>' +
-    '<div class="kpi"><b>' + Math.round(BM.roster(g, me).reduce(function (s, p) { return s + BM.relOf(p); }, 0) / Math.max(1, me.roster.length)) + '</b><span>Relation moyenne avec les joueurs</span></div><div class="kpi"><b>' + (g.hof || []).length + '</b><span>Membres du Hall of Fame</span></div></div>' +
+    '<div class="kpi"><b>' + Math.round(BM.roster(g, me).reduce(function (s, p) { return s + BM.relOf(p); }, 0) / Math.max(1, me.roster.length)) + '</b><span>Relation moyenne avec les joueurs</span></div><div class="kpi"><b>' + (g.headlines || []).length + '</b><span>Headlines cette saison</span></div></div>' +
     '<div class="card"><h2>Fil social</h2>' + UI.feedHtml(g.feed, 20) + '</div>' +
     '<div class="card"><h2>À la une</h2>' + UI.newsHtml(g, 8) + '</div>';
 };

@@ -132,6 +132,7 @@ UI.preMatch = function (fx) {
   var t = me.tactics;
   UI.modalLocked = true;
   UI.modal('<div class="modal-h"><h2>' + (fx.type === 'playoff' ? BM.ROUND_NAMES[fx.round] + ' · match ' + fx.game : 'Avant-match · Journée ' + fx.round) + '</h2>' +
+    (UI.rivalryBadge ? UI.rivalryBadge(g, fx) : '') +
     '<span class="small muted" style="margin-left:auto">' + UI.esc(BM.dateLabel(g, fx.day)) + '</span></div>' +
     '<div class="card wide"><div class="vs"><div class="t">' + UI.teamBadge(h) + UI.esc(h.name) + '<span class="small muted">' + h.record.w + 'V-' + h.record.l + 'D · note ' + avgOvr(h) + '</span>' + UI.formPips(g, h) + '</div>' +
     '<div class="mid">VS</div>' +
@@ -603,7 +604,6 @@ UI.finishMatch = function () {
   if (L.court) { L.court.destroy(); L.court = null; }
   BM.applyResult(g, fx, m);
   UI.save();
-  if (g.mode === 'career') { UI.cFinishMatch(); return; }
   var u = m.user, won = m.score[u] > m.score[1 - u];
   var mvp = m.mvp ? g.players[m.mvp] : null;
   var mvpBox = mvp && m.box[mvp.id] ? m.box[mvp.id] : null;
@@ -620,6 +620,7 @@ UI.finishMatch = function () {
       (mvpBox ? ' · <span class="muted">' + mvpBox.pts + ' pts, ' + (mvpBox.oreb + mvpBox.dreb) + ' reb, ' + mvpBox.ast + ' pd</span>' : '') + '</p></div>' : '') + '</div>' +
     (fx.ach ? '<div class="card wide"><h3>Accomplissement débloqué</h3>' + fx.ach.map(function (a) { return '<div class="attr"><span>' + UI.esc(a.l) + '</span><b class="a-hi">+' + a.pts + '</b></div>'; }).join('') + '</div>' : '') +
     UI.replyCard(g, fx) +
+    UI.nightScoresCard(g, fx) +
     UI.whyCard(fx.why) +
     UI.matchAnalyticsCard(fx, m.side[0], m.side[1]) +
     UI.boxTable(g, fx.box, 0, m.side[0]) + UI.boxTable(g, fx.box, 1, m.side[1]));

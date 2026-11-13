@@ -101,26 +101,7 @@ var BM = globalThis.BM = globalThis.BM || {};
 
   // ==================================================================== accomplissements à paliers
   BM.TIER_PTS = [2, 4, 7, 11, 16, 22, 30];
-  // Joueur (Ma Carrière). ctx = { L: ligne du match, S: saison en cours, T: totaux de carrière, C }
-  BM.ACH_PLAYER = [
-    { id: 'g_pts', s: 'match', l: 'Marquer {n} points dans un match', t: [20, 30, 40, 50, 60], v: function (x) { return x.L ? x.L.pts : 0; } },
-    { id: 'g_reb', s: 'match', l: 'Prendre {n} rebonds dans un match', t: [10, 15, 20], v: function (x) { return x.L ? x.L.reb : 0; } },
-    { id: 'g_ast', s: 'match', l: 'Délivrer {n} passes dans un match', t: [8, 12, 16], v: function (x) { return x.L ? x.L.ast : 0; } },
-    { id: 'g_tpm', s: 'match', l: 'Réussir {n} tirs à 3 points dans un match', t: [4, 7, 10], v: function (x) { return x.L ? x.L.tpm : 0; } },
-    { id: 'g_def', s: 'match', l: 'Cumuler {n} interceptions + contres dans un match', t: [4, 6, 8], v: function (x) { return x.L ? x.L.stl + x.L.blk : 0; } },
-    { id: 'g_td', s: 'match', l: 'Réussir un triple-double', t: [1], v: function (x) { var L = x.L; return L && [L.pts, L.reb, L.ast, L.stl, L.blk].filter(function (v) { return v >= 10; }).length >= 3 ? 1 : 0; } },
-    { id: 's_pts', s: 'saison', l: 'Marquer {n} points sur une saison', t: [500, 1000, 1500, 2000, 2500], v: function (x) { return x.S.pts; } },
-    { id: 's_ast', s: 'saison', l: 'Délivrer {n} passes sur une saison', t: [250, 450, 650], v: function (x) { return x.S.ast; } },
-    { id: 's_reb', s: 'saison', l: 'Prendre {n} rebonds sur une saison', t: [400, 700, 1000], v: function (x) { return x.S.reb; } },
-    { id: 's_tpm', s: 'saison', l: 'Réussir {n} tirs à 3 points sur une saison', t: [100, 200, 300], v: function (x) { return x.S.tpm; } },
-    { id: 'c_pts', s: 'carrière', l: 'Marquer {n} points en carrière', t: [1000, 5000, 10000, 20000, 30000, 40000], v: function (x) { return x.T.pts; } },
-    { id: 'c_reb', s: 'carrière', l: 'Prendre {n} rebonds en carrière', t: [1000, 4000, 8000, 12000], v: function (x) { return x.T.reb; } },
-    { id: 'c_ast', s: 'carrière', l: 'Délivrer {n} passes en carrière', t: [1000, 3000, 6000, 10000], v: function (x) { return x.T.ast; } },
-    { id: 'c_gp', s: 'carrière', l: 'Jouer {n} matchs en carrière', t: [82, 250, 500, 800, 1200], v: function (x) { return x.T.gp; } },
-    { id: 'c_as', s: 'carrière', l: 'Être sélectionné {n} fois au All-Star Game', t: [1, 3, 5, 10, 15], v: function (x) { return x.C.allStars || 0; } },
-    { id: 'c_ring', s: 'carrière', l: 'Remporter {n} titre(s)', t: [1, 2, 3, 4, 5, 6], v: function (x) { return x.C.rings || 0; } },
-    { id: 'c_mvp', s: 'carrière', l: 'Être élu {n} fois MVP', t: [1, 2, 3, 4], v: function (x) { return x.mvp; } }
-  ];
+  // (Mode « Ma Carrière » supprimé en v2.1 — l'écosystème social est désormais géré par js/social.js.)
   // Coach (mode Manager). ctx = g.coach
   BM.ACH_COACH = [
     { id: 'k_w', s: 'carrière', l: 'Gagner {n} matchs comme coach', t: [10, 50, 100, 250, 500, 1000], v: function (k) { return k.wins; } },
@@ -166,112 +147,13 @@ var BM = globalThis.BM = globalThis.BM || {};
     });
   };
 
-  // Totaux de carrière d'un joueur (saisons archivées + saison en cours).
-  BM.careerTotals = function (p) {
-    var T = { pts: p.stats.pts, reb: p.stats.reb, ast: p.stats.ast, gp: p.stats.gp };
-    (p.career || []).forEach(function (c) { T.pts += c.pts; T.reb += c.reb; T.ast += c.ast; T.gp += c.gp; });
-    return T;
-  };
-  BM.careerAchCtx = function (g, L) {
-    var C = g.career, p = BM.cPlayer(g);
-    return { L: L || null, S: p.stats, T: BM.careerTotals(p), C: C, mvp: (p.awards || []).filter(function (a) { return a.t === 'MVP'; }).length };
-  };
+  // (Totaux de carrière et contextes d'accomplissement joueur supprimés avec le mode carrière.)
 
-  // ==================================================================== rang Legacy (Ma Carrière)
-  // Le score mêle l'héritage acquis (points d'accomplissements, permanents) et la réputation actuelle :
-  // une mauvaise saison fait redescendre le rang, comme dans Hoop Land.
-  BM.LEGACY_RANKS = [['Rookie', 0], ['Rotation', 20], ['Titulaire', 40], ['All-Star', 62], ['Superstar', 88], ['Icône', 118], ['Légende', 155]];
-  BM.legacyRank = function (g) {
-    var C = g.career, score = (C.legacyPts || 0) * 0.35 + (C.rep || 0) * 0.9, i = 0;
-    BM.LEGACY_RANKS.forEach(function (r, k) { if (score >= r[1]) i = k; });
-    var next = BM.LEGACY_RANKS[i + 1];
-    return { i: i, l: BM.LEGACY_RANKS[i][0], score: Math.round(score), next: next ? next[1] : null, nextL: next ? next[0] : null, from: BM.LEGACY_RANKS[i][1] };
-  };
-  // Pouvoirs débloqués par le rang (et par la relation avec le coach pour le système).
-  BM.CAREER_POWERS = [
-    { id: 'trade', l: 'Demander un transfert', d: 'Une fois par saison. Le club cherchera preneur à la date limite.', rank: 3 },
-    { id: 'recruit', l: 'Suggérer une recrue', d: 'Propose un agent libre au coach. Une suggestion par mois.', rank: 3 },
-    { id: 'system', l: 'Choisir le système de jeu', d: 'Le coach adopte ton système. Relation avec le coach : 60 minimum.', rank: 4, coach: 60 }
-  ];
-  BM.careerPowerOk = function (g, id) {
-    var C = g.career, pw = BM.CAREER_POWERS.find(function (x) { return x.id === id; }), r = BM.legacyRank(g);
-    if (C.phase !== 'nba' || !BM.cTeam(g)) return { ok: false, why: 'Disponible une fois en NBA.' };
-    if (r.i < pw.rank) return { ok: false, why: 'Rang ' + BM.LEGACY_RANKS[pw.rank][0] + ' requis.' };
-    if (pw.coach && C.confCoach < pw.coach) return { ok: false, why: 'Relation avec le coach : ' + pw.coach + ' requis (' + Math.round(C.confCoach) + ').' };
-    if (id === 'trade' && (C.tradeAsked === g.season || C.tradeReq)) return { ok: false, why: 'Déjà demandé cette saison.' };
-    if (id === 'recruit' && C.recruitDay && g.day - C.recruitDay < 30) return { ok: false, why: 'Prochaine suggestion dans ' + (30 - (g.day - C.recruitDay)) + ' j.' };
-    return { ok: true };
-  };
-  BM.careerUsePower = function (g, id, arg) {
-    var C = g.career, p = BM.cPlayer(g), t = BM.cTeam(g), chk = BM.careerPowerOk(g, id);
-    if (!chk.ok) return chk.why;
-    if (id === 'trade') {
-      C.tradeReq = true; C.tradeAsked = g.season; C.confCoach -= 4; C.confMates -= 2;
-      BM.news(g, 'trade', 'BREAKING : ' + BM.fullName(p) + ' a demandé à être transféré par les ' + t.name + '.', true);
-      BM.cpress(g, 'Hoops Daily', BM.fullName(p) + ' veut partir', 'Le joueur a officiellement demandé son transfert.', '-');
-      BM.careerNormalize(g);
-      return 'Demande transmise. Le front office écoutera les offres jusqu\'à la date limite.';
-    }
-    if (id === 'recruit') {
-      var fa = g.players[arg];
-      if (!fa || fa.teamId !== null) return 'Ce joueur n\'est plus disponible.';
-      C.recruitDay = g.day;
-      var chance = clamp(0.3 + BM.legacyRank(g).i * 0.08 + (C.confCoach - 50) / 200 - (t.roster.length >= 15 ? 0.25 : 0), 0.05, 0.9);
-      if (g.rng.chance(chance)) {
-        g.freeAgents = g.freeAgents.filter(function (id) { return id !== fa.id; });
-        fa.contract = { salary: BM.askingSalary(fa), years: g.rng.int(1, 3) };
-        BM.addToTeam(g, fa, t);
-        if (t.roster.length > 15) {
-          var worst = BM.roster(g, t).filter(function (x) { return x !== p && x !== fa; }).sort(function (a, b) { return BM.ovrRaw(a) - BM.ovrRaw(b); })[0];
-          BM.removeFromTeam(g, worst); g.freeAgents.push(worst.id);
-        }
-        BM.autoTactics(g, t);
-        C.confMates += 2; BM.cMateAdd(g, fa.id, 12);
-        BM.news(g, 'trade', 'Les ' + t.name + ' signent ' + BM.fullName(fa) + ', une recrue soufflée par ' + BM.fullName(p) + '.');
-        BM.careerNormalize(g);
-        return 'Le coach t\'a écouté : ' + BM.fullName(fa) + ' signe chez les ' + t.name + '.';
-      }
-      C.confCoach -= 1; BM.careerNormalize(g);
-      return 'Le coach préfère garder son effectif. Il retient l\'idée.';
-    }
-    if (id === 'system') {
-      if (!BM.SYSTEMS[arg]) return 'Système inconnu.';
-      t.tactics.system = arg; C.confCoach -= 2;
-      BM.clog(g, 'Le coach adopte le ' + BM.SYSTEMS[arg].l + ' à ta demande.');
-      BM.careerNormalize(g);
-      return 'Le coach adopte le ' + BM.SYSTEMS[arg].l + '. Il attend des résultats.';
-    }
-    return '';
-  };
+  // (Rang Legacy joueur, pouvoirs carrière et catégories d'XP supprimés avec le mode carrière.)
 
-  // ==================================================================== relations avec chaque coéquipier (Ma Carrière)
-  BM.cMate = function (g, pid) { var C = g.career; C.mates = C.mates || {}; return C.mates[pid] !== undefined ? C.mates[pid] : 50; };
-  BM.cMateAdd = function (g, pid, x) { var C = g.career; C.mates = C.mates || {}; C.mates[pid] = clamp(BM.cMate(g, pid) + x, 0, 100); };
-
-  // ==================================================================== expérience par catégorie (Ma Carrière)
-  BM.CAREER_CATS = {
-    tir: { l: 'Tir', xp: function (c) { return c.tpm * 3 + c.midm * 2; } },
-    fin: { l: 'Finition', xp: function (c) { return c.rimm * 2; } },
-    crea: { l: 'Création', xp: function (c) { return c.ast * 2; } },
-    def: { l: 'Défense', xp: function (c) { return c.stl * 3 + c.blk * 3 + c.reb * 0.6; } }
-  };
-  BM.catLevel = function (xp) { return Math.floor(Math.sqrt(xp / 12)); };
-  BM.catNext = function (lvl) { return 12 * (lvl + 1) * (lvl + 1); };
-  BM.careerCatCheck = function (g) {
-    var C = g.career, ups = [];
-    C.catLv = C.catLv || {};
-    Object.keys(BM.CAREER_CATS).forEach(function (k) {
-      var lv = BM.catLevel(BM.CAREER_CATS[k].xp(C.cnt)), old = C.catLv[k] === undefined ? lv : C.catLv[k];
-      if (lv > old) { ups.push(BM.CAREER_CATS[k].l + ' niveau ' + lv); C.pp += (lv - old) * 3; BM.clog(g, BM.CAREER_CATS[k].l + ' : niveau ' + lv + ' (+' + (lv - old) * 3 + ' PP).'); }
-      C.catLv[k] = lv;
-    });
-    return ups;
-  };
-
-  // ==================================================================== fil social (les deux modes)
-  BM.feedOf = function (g) { if (g.mode === 'career' && g.career) return g.career.feed; g.feed = g.feed || []; return g.feed; };
+  // ==================================================================== fil social (mode Manager uniquement — v2.1)
+  BM.feedOf = function (g) { g.feed = g.feed || []; return g.feed; };
   BM.post = function (g, who, h, t, mine, likes) {
-    if (g.mode === 'career' && g.career) { BM.cfeed(g, who, h, t, mine, likes); return; }
     g.feed = g.feed || [];
     var me = BM.myTeam(g);
     g.feed.unshift({ day: g.day, who: who, h: h, t: t, mine: !!mine, likes: likes || Math.round(BM.fansOf(me) * (0.002 + g.rng.next() * 0.006) + 80) });
