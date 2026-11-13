@@ -1,13 +1,37 @@
 // Test de bout en bout : simule plusieurs saisons complètes et vérifie que les statistiques restent réalistes.
 // Lancement : node test/sim.test.js
 var path = require('path');
+var fs = require('fs');
 var assert = require('assert');
 ['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'analysis', 'league', 'legacy'].forEach(function (f) {
   require(path.join(__dirname, '..', 'js', f + '.js'));
 });
 var BM = globalThis.BM;
 
+// Le runtime ne doit plus exposer le mode solo « Ma Carrière ».
+var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+assert(!/src="js\/career(?:-data|-match|-events|-ui)?\.js/.test(html), 'scripts du mode Ma Carrière absents du runtime');
+
+// Boucle sociale : rivalité persistante, trash talk avec conséquence, résultats de la soirée.
+var socialGame = BM.newGame({ seed: 4242, teamId: 5, managerName: 'Social QA' });
+var socialFx = socialGame.fixtures.find(function (f) { return f.home === 5 || f.away === 5; });
+assert(socialFx, 'match de la franchise trouvé');
+socialGame.day = socialFx.day;
+BM.playMatch(socialGame, socialFx);
+assert(socialGame.reply && socialGame.reply.rival !== undefined, 'publication proposée après le vrai match');
+var rivalry = socialGame.rivalries[0];
+assert(rivalry && rivalry.meetings === 1, 'première confrontation enregistrée');
+assert(BM.socialTargets(socialGame).some(function (x) { return x[0] === 'rival'; }), 'les rivaux sont une cible sociale');
+var rivalMood = BM.roster(socialGame, socialGame.teams[socialGame.reply.rival]).reduce(function (v, p) { return v + p.morale; }, 0);
+assert(/^Publié/.test(BM.socialReply(socialGame, 'rival', 'callout')), 'trash talk publié');
+var rivalMoodAfter = BM.roster(socialGame, socialGame.teams[rivalry.a === 5 ? rivalry.b : rivalry.a]).reduce(function (v, p) { return v + p.morale; }, 0);
+assert(rivalMoodAfter < rivalMood, 'trash talk affecte le moral adverse');
+BM.leagueRoundup(socialGame, [socialFx]);
+var scoreboard = socialGame.teams[socialFx.home].short + ' ' + socialFx.hs + '-' + socialFx.as + ' ' + socialGame.teams[socialFx.away].short;
+assert(socialGame.feed.some(function (p) { return p.t.indexOf(scoreboard) >= 0; }), 'résultat de la ligue publié');
+
 var g = BM.newGame({ seed: 12345, teamId: 5, managerName: 'Test' });
+assert.strictEqual(g.mode, 'manager', 'nouvelle sauvegarde en mode Manager uniquement');
 assert.strictEqual(g.teams.length, 30);
 assert.strictEqual(g.fixtures.length, 870, '58 journées x 15 matchs');
 

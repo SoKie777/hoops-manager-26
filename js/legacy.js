@@ -7,7 +7,7 @@ var BM = globalThis.BM = globalThis.BM || {};
   var fill = function (s, o) { return s.replace(/\{(\w+)\}/g, function (_, k) { return o[k] !== undefined ? o[k] : ''; }); };
 
   // ==================================================================== actualités de la ligue
-  BM.NEWS_KINDS = { trade: 'Transfert', injury: 'Blessure', retire: 'Retraite', hof: 'Hall of Fame', death: 'Disparition', record: 'Performance', jersey: 'Maillot retiré', award: 'Trophée' };
+  BM.NEWS_KINDS = { trade: 'Transfert', injury: 'Blessure', retire: 'Retraite', hof: 'Hall of Fame', death: 'Disparition', record: 'Performance', jersey: 'Maillot retiré', award: 'Trophée', roundup: 'Résultats' };
   BM.news = function (g, kind, t, big) {
     g.news = g.news || [];
     g.news.unshift({ day: g.day, s: g.season, k: kind, t: t, big: !!big });
@@ -288,13 +288,54 @@ var BM = globalThis.BM = globalThis.BM || {};
     mate: ['Grosse soirée de la famille ! Fier de jouer avec {S}.', 'On se remet au travail dès demain. Ensemble.', 'Le vestiaire est soudé, ça se voit sur le terrain.'],
     mateLoss: ['On doit être meilleurs. Moi le premier.', 'Pas notre soirée. On répond au prochain match.'],
     media: ['FINAL : {HOME} {HS} – {AS} {AWAY}. Joueur du match : {MVP}.'],
-    big: ['ÉNORME : {S} plante {PTS} points contre les {O}. La ligue est prévenue.']
+    big: ['ÉNORME : {S} plante {PTS} points contre les {O}. La ligue est prévenue.'],
+    rival: ['La rivalité avec les {O} vient de prendre un degré. {US}-{THEM}. La prochaine confrontation sera électrique.', 'Les {O} parlent beaucoup. On attend de voir ça au prochain match.', 'Ce n’est plus un simple match contre les {O}. C’est devenu personnel.']
   };
-  // Publications générées après un match de l'utilisateur. focus = joueur mis en avant (ton joueur en carrière, le meilleur marqueur en Manager).
+  // ==================================================================== rivalités et résultats de la ligue
+  BM.updateRivalry = function (g, fx, m, userSide) {
+    g.rivalries = g.rivalries || [];
+    var own = m.side[userSide], opp = m.side[1 - userSide], a = Math.min(own.id, opp.id), b = Math.max(own.id, opp.id);
+    var r = g.rivalries.find(function (x) { return x.a === a && x.b === b; });
+    if (!r) {
+      r = { a: a, b: b, heat: 0, meetings: 0, userWins: 0, oppWins: 0, lastDay: -1, lastWinner: null };
+      g.rivalries.push(r);
+    }
+    var won = m.score[userSide] > m.score[1 - userSide];
+    r.meetings++;
+    if (won) r.userWins++; else r.oppWins++;
+    r.lastDay = g.day;
+    r.lastWinner = won ? own.id : opp.id;
+    var margin = Math.abs(m.score[0] - m.score[1]);
+    r.heat = clamp(r.heat + (fx.type === 'playoff' ? 16 : margin <= 5 ? 10 : margin <= 12 ? 7 : 4), 0, 100);
+    return r;
+  };
+
+  BM.leagueRoundup = function (g, fixtures) {
+    var games = (fixtures || []).filter(function (f) { return f.played && (f.type === 'league' || f.type === 'playoff'); });
+    if (!games.length) return;
+    var results = games.map(function (f) {
+      var h = g.teams[f.home], a = g.teams[f.away];
+      return (f.type === 'playoff' ? 'PLAYOFFS · ' : '') + h.short + ' ' + f.hs + '-' + f.as + ' ' + a.short;
+    });
+    BM.post(g, 'Hoops Daily', '@hoopsdaily', 'Résultats de la soirée : ' + results.join(' · '), false, 1);
+    var close = games.slice().sort(function (a, b) { return Math.abs(a.hs - a.as) - Math.abs(b.hs - b.as); })[0];
+    var blowout = games.slice().sort(function (a, b) { return Math.abs(b.hs - b.as) - Math.abs(a.hs - a.as); })[0];
+    if (close) {
+      var ch = g.teams[close.home], ca = g.teams[close.away];
+      BM.news(g, 'roundup', 'Thriller : ' + ch.short + ' ' + close.hs + '-' + close.as + ' ' + ca.short + ' — écart de ' + Math.abs(close.hs - close.as) + ' point(s).', false);
+    }
+    if (blowout && Math.abs(blowout.hs - blowout.as) >= 20) {
+      var bh = g.teams[blowout.home], ba = g.teams[blowout.away];
+      BM.news(g, 'roundup', 'Carton : ' + bh.short + ' ' + blowout.hs + '-' + blowout.as + ' ' + ba.short + '.', false);
+    }
+  };
+
+  // Publications générées après un match de l'utilisateur. focus = meilleur marqueur de la franchise.
   BM.socialAfterMatch = function (g, fx, m, focusId) {
-    var r = g.rng, userSide = BM.isCareer(g) ? (fx.home === BM.cPlayer(g).teamId ? 0 : 1) : (fx.home === g.userTeam ? 0 : 1);
+    var r = g.rng, userSide = fx.home === g.userTeam ? 0 : 1;
     var team = m.side[userSide], opp = m.side[1 - userSide], won = m.score[userSide] > m.score[1 - userSide];
     var star = g.players[focusId], b = star ? m.box[star.id] : null, mvp = fx.mvp ? g.players[fx.mvp] : null;
+    var rivalry = BM.updateRivalry(g, fx, m, userSide);
     var o = { S: star ? BM.fullName(star) : team.name, PTS: b ? b.pts : 0, T: team.nick || team.name, TS: (team.short || '').toLowerCase(), O: opp.nick || opp.name, US: m.score[userSide], THEM: m.score[1 - userSide],
       HOME: m.side[0].short, AWAY: m.side[1].short, HS: m.score[0], AS: m.score[1], MVP: mvp ? BM.fullName(mvp) : '-' };
     BM.post(g, 'Hoops Daily', '@hoopsdaily', fill(POSTS.media[0], o));
@@ -302,8 +343,27 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (r.chance(0.55)) BM.post(g, 'Fan adverse', '@' + r.pick(FAN_HANDLES), fill(r.pick(won ? POSTS.troll : POSTS.oppFan), o));
     var mates = m.roster[userSide].filter(function (p) { return !star || p.id !== star.id; }).sort(function (a, c) { return (m.box[c.id].pts || 0) - (m.box[a.id].pts || 0); });
     if (mates[0] && r.chance(0.6)) BM.post(g, BM.fullName(mates[0]), '@' + (mates[0].first + mates[0].last).toLowerCase().replace(/[^a-z]/g, ''), fill(r.pick(won ? POSTS.mate : POSTS.mateLoss), o));
-    if (b && b.pts >= 38) BM.post(g, 'Courtside TV', '@courtsidetv', fill(POSTS.big[0], o));
-    g.reply = { fx: fx.id, won: won, star: star ? star.id : null, mate: mates[0] ? mates[0].id : null, day: g.day };
+    if (b && b.pts >= 38 && b.pts < 40) BM.post(g, 'Courtside TV', '@courtsidetv', fill(POSTS.big[0], o));
+    if (b) {
+      var rebounds = (b.oreb || 0) + (b.dreb || 0);
+      if (b.pts >= 40 || (b.pts >= 30 && rebounds >= 10 && b.ast >= 10)) {
+        var feat = b.pts >= 40 ? b.pts + ' points' : 'triple-double';
+        BM.news(g, 'record', BM.fullName(star) + ' signe ' + feat + ' contre ' + opp.name + '.', true);
+        BM.post(g, 'Courtside TV', '@courtsidetv', BM.fullName(star) + ' vient de livrer une performance de référence : ' + feat + '.');
+      }
+    }
+    if (won && team.record.streak.charAt(0) === 'V' && parseInt(team.record.streak.slice(1), 10) >= 5) {
+      var streak = parseInt(team.record.streak.slice(1), 10);
+      BM.news(g, 'record', team.name + ' signe une série de ' + streak + ' victoires consécutives.', true);
+      BM.post(g, 'Hoops Daily', '@hoopsdaily', team.name + ' est lancé : ' + streak + ' victoires de suite. Qui peut les arrêter ?');
+    }
+    if (rivalry.meetings >= 2 || fx.type === 'playoff') {
+      if (rivalry.heat >= 30) {
+        BM.post(g, 'Rival Watch', '@rivalwatch', fill(r.pick(POSTS.rival), o));
+        BM.news(g, 'record', 'Rivalité en hausse : ' + team.name + ' – ' + opp.name + ' (' + rivalry.meetings + ' confrontations).', rivalry.heat >= 65);
+      }
+    }
+    g.reply = { fx: fx.id, won: won, star: star ? star.id : null, mate: mates[0] ? mates[0].id : null, rival: opp.id, day: g.day };
   };
 
   BM.SOCIAL_TONES = [['praise', 'Féliciter'], ['shout', 'Saluer'], ['callout', 'Recadrer'], ['blame', 'Accuser']];
@@ -319,15 +379,16 @@ var BM = globalThis.BM = globalThis.BM || {};
     } else {
       out.push(['team', 'L\'équipe']);
       if (R.star && g.players[R.star]) out.push(['star', BM.shortName(g.players[R.star])]);
+      if (R.rival !== undefined && g.teams[R.rival]) out.push(['rival', 'Les rivaux']);
       out.push(['fans', 'Les fans'], ['self', 'Toi (le coach)'], ['refs', 'Les arbitres']);
     }
     return out;
   };
   var MY_POST = {
-    praise: { self: 'Bon travail ce soir. J\'ai fait ma part.', coach: 'Merci coach {C}, plan de jeu parfait.', mate: '{M}, quelle soirée. Content de jouer à tes côtés.', star: '{M}, patron ce soir. Fier de toi.', team: 'Fier de cette équipe. Tout le monde a répondu présent.', fans: 'Les fans, vous êtes notre sixième homme. Merci !', refs: 'Arbitrage juste ce soir, c\'est assez rare pour le dire.' },
-    shout: { self: 'On continue de bosser.', coach: 'Respect au staff pour la préparation.', mate: 'Big up {M} !', star: 'Big up {M} !', team: 'La famille. Toujours.', fans: 'Merci pour l\'énergie dans la salle.', refs: 'Bien sifflé.' },
-    callout: { self: 'Pas au niveau ce soir. Je dois être meilleur.', coach: 'On doit parler du plan de jeu. Ce soir, ça n\'a pas marché.', mate: '{M}, on attend plus de toi.', star: '{M}, on attend plus de toi.', team: 'Ce n\'est pas acceptable. Tout le monde doit se regarder dans le miroir.', fans: 'Si vous n\'êtes pas derrière nous dans les moments durs, restez chez vous.', refs: 'On aimerait le même arbitrage des deux côtés.' },
-    blame: { self: 'Celle-là est pour moi. Je l\'assume.', coach: 'Difficile de gagner avec ce plan de jeu.', mate: 'Certains n\'étaient pas là ce soir. Suivez mon regard, {M}.', star: 'Certains n\'étaient pas là ce soir. Suivez mon regard, {M}.', team: 'On a été mauvais collectivement. Inacceptable.', fans: 'Une salle silencieuse, ça ne nous a pas aidés.', refs: 'On nous a volé ce match. Regardez les images.' }
+    praise: { self: 'Bon travail ce soir. J\'ai fait ma part.', coach: 'Merci coach {C}, plan de jeu parfait.', mate: '{M}, quelle soirée. Content de jouer à tes côtés.', star: '{M}, patron ce soir. Fier de toi.', team: 'Fier de cette équipe. Tout le monde a répondu présent.', fans: 'Les fans, vous êtes notre sixième homme. Merci !', refs: 'Arbitrage juste ce soir, c\'est assez rare pour le dire.', rival: 'Respect aux {M} pour le combat. On se retrouve au prochain match.' },
+    shout: { self: 'On continue de bosser.', coach: 'Respect au staff pour la préparation.', mate: 'Big up {M} !', star: 'Big up {M} !', team: 'La famille. Toujours.', fans: 'Merci pour l\'énergie dans la salle.', refs: 'Bien sifflé.', rival: 'Bon match aux {M}. La prochaine fois, ce sera différent.' },
+    callout: { self: 'Pas au niveau ce soir. Je dois être meilleur.', coach: 'On doit parler du plan de jeu. Ce soir, ça n\'a pas marché.', mate: '{M}, on attend plus de toi.', star: '{M}, on attend plus de toi.', team: 'Ce n\'est pas acceptable. Tout le monde doit se regarder dans le miroir.', fans: 'Si vous n\'êtes pas derrière nous dans les moments durs, restez chez vous.', refs: 'On aimerait le même arbitrage des deux côtés.', rival: 'Les {M} ont célébré trop tôt. On garde ça en mémoire.' },
+    blame: { self: 'Celle-là est pour moi. Je l\'assume.', coach: 'Difficile de gagner avec ce plan de jeu.', mate: 'Certains n\'étaient pas là ce soir. Suivez mon regard, {M}.', star: 'Certains n\'étaient pas là ce soir. Suivez mon regard, {M}.', team: 'On a été mauvais collectivement. Inacceptable.', fans: 'Une salle silencieuse, ça ne nous a pas aidés.', refs: 'On nous a volé ce match. Regardez les images.', rival: 'Les {M} ont eu de la réussite. Qu’ils profitent, ça ne durera pas.' }
   };
   // Applique les effets de ta publication et l'ajoute au fil. Renvoie le compte rendu des conséquences.
   BM.socialReply = function (g, target, tone) {
@@ -364,8 +425,12 @@ var BM = globalThis.BM = globalThis.BM || {};
         var f = Math.round(BM.fansOf(me) * (sign > 0 ? 0.01 : -0.015));
         me.fans += f; likesMul = sign > 0 ? 1.6 : 0.6;
         out.push((f >= 0 ? '+' : '') + BM.fmtN(f) + ' fans');
-      } else if (target === 'refs') {
-        if (sign < 0) { me.balance -= 25; g.board.confidence = clamp(g.board.confidence - 2, 0, 100); out.push('amende de 25 k$, la direction n\'apprécie pas'); } else out.push('la ligue apprécie');
+      } else if (target === 'rival' && R.rival !== undefined && g.teams[R.rival]) {
+        var rivalTeam = g.teams[R.rival];
+        if (tone === 'praise') { rivalTeam.rep = clamp(rivalTeam.rep + 0.2, 20, 99); out.push('respect affiché, rivalité apaisée'); }
+        else if (tone === 'shout') { out.push('message reçu dans le camp adverse'); }
+        else if (tone === 'callout') { BM.roster(g, rivalTeam).forEach(function (x) { x.morale = clamp(x.morale - 1, 0, 100); }); me.fans += Math.round(BM.fansOf(me) * 0.002); out.push('petit coup de pression, les fans réagissent'); }
+        else { me.balance -= 25; g.board.confidence = clamp(g.board.confidence - 1, 0, 100); out.push('la ligue ouvre un dossier disciplinaire et inflige une amende de vingt-cinq mille dollars'); }
       } else {
         if (sign < 0) { g.board.confidence = clamp(g.board.confidence + 1, 0, 100); roster.forEach(function (x) { BM.relAdd(g, x, 1); }); out.push('la direction et le vestiaire apprécient que tu assumes'); }
         else { roster.forEach(function (x) { BM.relAdd(g, x, -1); }); out.push('le vestiaire trouve ça un peu facile'); }

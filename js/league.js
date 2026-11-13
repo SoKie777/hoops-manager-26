@@ -10,11 +10,13 @@ BM.newGame = function (opts) {
     version: BM.VERSION,
     rng: new BM.RNG(opts.seed || Date.now()),
     nextId: 1, day: 0, season: 1, seasonStart: 0,
+    mode: 'manager',
     managerName: opts.managerName || 'Coach',
     userTeam: opts.teamId, phase: 'regular',
     players: {}, teams: [], freeAgents: [], fixtures: [], playoffs: null,
     inbox: [], history: [], nextMsgId: 1, gameOver: false, fxId: 1,
-    training: { focus: 'equilibre', intensity: 'normale' }
+    training: { focus: 'equilibre', intensity: 'normale' },
+    feed: [], news: [], rivalries: []
   };
   var byCode = {};
   BM.NBA.teams.forEach(function (t, i) {
@@ -310,6 +312,7 @@ BM.advance = function (g) {
 };
 
 BM.endDay = function (g) {
+  if (BM.leagueRoundup) BM.leagueRoundup(g, BM.fixturesOn(g, g.day));
   var hadMatch = {};
   BM.fixturesOn(g, g.day).forEach(function (f) { hadMatch[f.home] = hadMatch[f.away] = true; });
   g.teams.forEach(function (t) {

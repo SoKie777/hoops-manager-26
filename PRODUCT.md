@@ -9,7 +9,7 @@ web
 (HTML/CSS/JS wrapped in a Capacitor Android APK; the design language is web, not native Android.)
 
 ## Users
-The author, plus friends and family who get the signed APK privately. They play solo, mostly on an Android phone held in landscape, and sometimes in a desktop browser. Each player runs a franchise (or a career) over many seasons, so sessions return to the same screens again and again: roster, tactics, match day, results. There is no public release planned for now.
+The author, plus friends and family who get the signed APK privately. They play solo, mostly on an Android phone held in landscape, and sometimes in a desktop browser. Each player manages one franchise over many seasons, so sessions return to the same screens again and again: roster, tactics, match day, results. There is no public release planned for now.
 
 ## Product Purpose
 A basketball management game that brings the depth of *Football Manager Mobile* to an NBA-style league. Success means a season feels like FM: choices about tactics, development, scouting, the locker room and trades visibly shape results, and the player understands why.
@@ -26,7 +26,7 @@ Two things together, which neighbouring basketball managers don't offer:
 
 ## Capabilities and Constraints
 - **Manager mode**: run one of 30 franchises (roster, half-court tactics board, transfers with AI trade offers, scouting, development, locker room, draft, press, board objectives, playoffs bracket).
-- **Ma Carrière mode**: a 19-year-old prospect goes through NCAA / EuroLeague / G League Ignite, the combine and the draft, then an NBA career; on retirement the same save switches to coaching.
+- **Social layer**: post-match media coverage, fan reactions, player praise, rivalry heat, trash talk, and a league-wide results roundup after each matchday.
 - **League data**: real 2026-27 NBA rosters and contracts (from Basketball-Reference) with NBA 2K27 ratings, moved to African cities with NBA nicknames (*Kinshasa Lakers*, *Dakar Spurs*…). Current practice is surnames with one doubled vowel and procedurally generated portraits; no real photos.
 - **Live match**: a 2D court with system-specific movement, a TV scorebug, a momentum bar, a shot chart and a game-flow chart, and synthesized WebAudio sounds.
 - **Hard constraints**:
@@ -41,7 +41,7 @@ Two things together, which neighbouring basketball managers don't offer:
 
 ## Evidence on Hand
 - Analysis of the FM Mobile game loop: `docs/ANALYSE.md`.
-- Engine stat tests: `test/engine.test.js`, `test/career.test.js`.
+- Engine and season simulation tests: `test/engine.test.js`, `test/sim.test.js`.
 - No testimonials, players or press exist. Never invent any.
 
 ## Product Principles
