@@ -30,10 +30,9 @@ npx serve . -l 8765
 
 ## Contenu & Nouveautés v2.0 (Édition Studio AAA)
 
-Deux modes de jeu complets dans la même ligue dynamique :
+Un seul mode de jeu : **Manager**. Dirigez l'une des 30 franchises avec l'effectif, la tactique sur demi-terrain, le mercato, le scouting, le développement, le vestiaire, la draft, les conférences de presse et les objectifs de la direction.
 
-- **Mode Manager** : dirigez l'une des 30 franchises (effectif, tactique sur demi-terrain, mercato avec générateur d'offres IA, scouting, pôle développement, vestiaire, draft, conférences de presse, objectifs de la direction).
-- **Mode Ma Carrière** : incarnez un prospect de 19 ans. Choisissez votre tremplin vers la draft (**NCAA** et la March Madness, **Euroligue** face à des pros, ou **G League Ignite**), participez au Draft Combine et aux workouts, vivez la soirée de Draft puis bâtissez votre légende NBA (entraînement, activités du soir, événements de vie à choix façon *BitLife*, mentalité en match, **moments clés interactifs en direct**, interviews en zone mixte, sponsors à clauses, patrimoine, agents, badges à 4 paliers, trophées et score d'héritage). À la retraite, reconvertissez-vous en **Coach** dans la même sauvegarde !
+Le cœur de l'expérience est la construction d'une dynastie : chaque journée nourrit le classement, les médias, les rivalités et les relations du vestiaire. Après les rencontres, le fil social réagit aux performances, les supporters chambrent ou félicitent, les médias publient les résultats de la ligue et les confrontations répétées font monter la tension.
 
 ### Points forts techniques & gameplay
 - **Interface Broadcast & Télémétrie SVG (v2.0)** :
