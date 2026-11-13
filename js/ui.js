@@ -212,22 +212,19 @@ UI.startScreen = function () {
           x.rank + 'e effectif · ' + UI.esc(x.star) + '</small></span></button>';
       }).join('') + '</div>';
   };
-  var mode = UI.startMode || 'manager';
   return '<div class="start">' +
-    '<div class="start-h">' + UI.ballSvg() + '<h1>Hoops Manager 26</h1><p>Effectifs NBA réels 2026-27, version africaine.</p></div>' +
+    '<div class="start-h">' + UI.ballSvg() + '<h1>Hoops Manager 26</h1><p>Un univers de basket à diriger, match après match.</p></div>' +
     '<div class="page">' +
     (hasSave ? '<div class="card wide"><div class="card-h"><h2>Reprendre</h2></div><button class="btn primary block" data-act="loadSave">Charger la partie sauvegardée</button></div>' : '') +
-    '<div class="modepick"><button data-act="startMode" data-v="manager" class="' + (mode === 'manager' ? 'on' : '') + '"><b>Manager</b><span>Tu diriges une franchise : effectif, tactique, mercato, draft.</span></button>' +
-    '<button data-act="startMode" data-v="career" class="' + (mode === 'career' ? 'on' : '') + '"><b>Ma Carrière</b><span>Tu es un joueur : de prospect de 19 ans à la retraite… puis coach.</span></button></div>' +
-    (mode === 'career' ? UI.careerCreate() :
     '<div class="card" style="display:grid;gap:12px">' +
-    '<h2>Nouvelle partie</h2>' +
+    '<h2>Nouvelle partie · Mode Coach</h2>' +
+    '<p class="small muted" style="margin:0">Choisis une franchise. Tu prends les décisions sportives, tactiques et humaines. La ligue continue de vivre autour de toi.</p>' +
     '<div class="field"><label for="mgr">Nom du coach</label><input type="text" id="mgr" maxlength="30" value="' + UI.esc(UI.mgrName || '') + '" placeholder="Votre nom"></div>' +
     '<div class="field"><label>Choisissez votre club</label>' + confBlock('E') + confBlock('W') + '</div>' +
     '<p class="small muted" style="margin:0">Objectif de la direction pour <b>' + UI.esc(t.city + ' ' + t.nick) + '</b> : ' + BM.OBJECTIVES[obj] + '.</p>' +
     '<button class="btn primary block" data-act="newGame">Commencer</button>' +
-    '</div>') +
-    '<div class="card"><div class="card-h"><h2>Importer</h2></div><p class="small muted" style="margin-top:0">Charger un fichier de sauvegarde exporté (.json).</p>' +
+    '</div>' +
+    '<div class="card"><div class="card-h"><h2>Importer une sauvegarde</h2></div><p class="small muted" style="margin-top:0">Charger un fichier de sauvegarde exporté (.json).</p>' +
     '<input type="file" accept="application/json,.json" data-change="importFile"></div>' +
     '</div></div>';
 };
