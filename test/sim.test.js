@@ -28,6 +28,7 @@ BM.leagueRoundup(socialGame, [{ played: true, type: 'league', home: 5, away: 8, 
 assert(socialGame.feed.some(function (p) { return p.t.indexOf('112-108') >= 0; }), 'résultat de la ligue publié');
 
 var g = BM.newGame({ seed: 12345, teamId: 5, managerName: 'Test' });
+assert.strictEqual(g.mode, 'manager', 'nouvelle sauvegarde en mode Manager uniquement');
 assert.strictEqual(g.teams.length, 30);
 assert.strictEqual(g.fixtures.length, 870, '58 journées x 15 matchs');
 
