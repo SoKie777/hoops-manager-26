@@ -27,7 +27,7 @@ jobs:
       - name: Installer les dépendances
         run: npm ci
 
-      - name: Tester le moteur (3 saisons simulées)
+      - name: Vérifier la boucle Manager et simuler 3 saisons
         run: npm test
 
             - name: Banc d'essai statistique (milliers de matchs, cibles NBA, exploits tactiques)
