@@ -9,7 +9,7 @@ web
 (HTML/CSS/JS wrapped in a Capacitor Android APK; the design language is web, not native Android.)
 
 ## Users
-The author, plus friends and family who get the signed APK privately. They play solo, mostly on an Android phone held in landscape, and sometimes in a desktop browser. Each player runs a franchise (or a career) over many seasons, so sessions return to the same screens again and again: roster, tactics, match day, results. There is no public release planned for now.
+The author, plus friends and family who get the signed APK privately. They play solo, mostly on an Android phone held in landscape, and sometimes in a desktop browser. Each player manages one franchise over many seasons, so sessions return to the same screens again and again: roster, tactics, match day, results. There is no public release planned for now.
 
 ## Product Purpose
 A basketball management game that brings the depth of *Football Manager Mobile* to an NBA-style league. Success means a season feels like FM: choices about tactics, development, scouting, the locker room and trades visibly shape results, and the player understands why.
@@ -41,7 +41,7 @@ Two things together, which neighbouring basketball managers don't offer:
 
 ## Evidence on Hand
 - Analysis of the FM Mobile game loop: `docs/ANALYSE.md`.
-- Engine stat tests: `test/engine.test.js`, `test/career.test.js`.
+- Engine and season simulation tests: `test/engine.test.js`, `test/sim.test.js`.
 - No testimonials, players or press exist. Never invent any.
 
 ## Product Principles
