@@ -14,18 +14,21 @@ assert(!/src="js\/career(?:-data|-match|-events|-ui)?\.js/.test(html), 'scripts 
 
 // Boucle sociale : rivalité persistante, trash talk avec conséquence, résultats de la soirée.
 var socialGame = BM.newGame({ seed: 4242, teamId: 5, managerName: 'Social QA' });
-var socialMatch = { side: [socialGame.teams[5], socialGame.teams[8]], score: [112, 108] };
-var rivalry = BM.updateRivalry(socialGame, { type: 'league' }, socialMatch, 0);
-assert.strictEqual(rivalry.meetings, 1, 'première confrontation enregistrée');
-assert.strictEqual(rivalry.userWins, 1, 'victoire ajoutée à l’historique');
-socialGame.reply = { won: true, rival: 8, star: BM.roster(socialGame, socialGame.teams[5])[0].id };
+var socialFx = socialGame.fixtures.find(function (f) { return f.home === 5 || f.away === 5; });
+assert(socialFx, 'match de la franchise trouvé');
+socialGame.day = socialFx.day;
+BM.playMatch(socialGame, socialFx);
+assert(socialGame.reply && socialGame.reply.rival !== undefined, 'publication proposée après le vrai match');
+var rivalry = socialGame.rivalries[0];
+assert(rivalry && rivalry.meetings === 1, 'première confrontation enregistrée');
 assert(BM.socialTargets(socialGame).some(function (x) { return x[0] === 'rival'; }), 'les rivaux sont une cible sociale');
-var rivalMood = BM.roster(socialGame, socialGame.teams[8]).reduce(function (v, p) { return v + p.morale; }, 0);
+var rivalMood = BM.roster(socialGame, socialGame.teams[socialGame.reply.rival]).reduce(function (v, p) { return v + p.morale; }, 0);
 assert(/^Publié/.test(BM.socialReply(socialGame, 'rival', 'callout')), 'trash talk publié');
-var rivalMoodAfter = BM.roster(socialGame, socialGame.teams[8]).reduce(function (v, p) { return v + p.morale; }, 0);
+var rivalMoodAfter = BM.roster(socialGame, socialGame.teams[rivalry.a === 5 ? rivalry.b : rivalry.a]).reduce(function (v, p) { return v + p.morale; }, 0);
 assert(rivalMoodAfter < rivalMood, 'trash talk affecte le moral adverse');
-BM.leagueRoundup(socialGame, [{ played: true, type: 'league', home: 5, away: 8, hs: 112, as: 108 }]);
-assert(socialGame.feed.some(function (p) { return p.t.indexOf('112-108') >= 0; }), 'résultat de la ligue publié');
+BM.leagueRoundup(socialGame, [socialFx]);
+var scoreboard = socialGame.teams[socialFx.home].short + ' ' + socialFx.hs + '-' + socialFx.as + ' ' + socialGame.teams[socialFx.away].short;
+assert(socialGame.feed.some(function (p) { return p.t.indexOf(scoreboard) >= 0; }), 'résultat de la ligue publié');
 
 var g = BM.newGame({ seed: 12345, teamId: 5, managerName: 'Test' });
 assert.strictEqual(g.mode, 'manager', 'nouvelle sauvegarde en mode Manager uniquement');
