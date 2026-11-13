@@ -1,6 +1,6 @@
 # Hoops Manager 26 (Édition Studio v2.0)
 
-Un jeu complet de management et de carrière de basket pour **PC (Widescreen Studio)** et **Mobile (Android APK)**, en HTML, CSS et JavaScript pur, sans dépendance externe. Il reprend et enrichit la boucle de jeu de *Football Manager Mobile* (analysée dans [docs/ANALYSE.md](docs/ANALYSE.md)) avec une présentation Broadcast NBA et une télémétrie avancée.
+Un jeu de management et de coaching de basket pour **PC (Widescreen Studio)** et **Mobile (Android APK)**, en HTML, CSS et JavaScript pur, sans dépendance externe. Il reprend et enrichit la boucle de jeu de *Football Manager Mobile* (analysée dans [docs/ANALYSE.md](docs/ANALYSE.md)) avec une présentation Broadcast NBA et une télémétrie avancée.
 
 ---
 
@@ -30,7 +30,7 @@ npx serve . -l 8765
 
 ## Contenu & Nouveautés v2.0 (Édition Studio AAA)
 
-Deux modes de jeu complets dans la même ligue dynamique :
+Une expérience centrée sur le mode Coach, dans une ligue dynamique :
 
 - **Mode Manager** : dirigez l'une des 30 franchises (effectif, tactique sur demi-terrain, mercato avec générateur d'offres IA, scouting, pôle développement, vestiaire, draft, conférences de presse, objectifs de la direction).
 - **Mode Ma Carrière** : incarnez un prospect de 19 ans. Choisissez votre tremplin vers la draft (**NCAA** et la March Madness, **Euroligue** face à des pros, ou **G League Ignite**), participez au Draft Combine et aux workouts, vivez la soirée de Draft puis bâtissez votre légende NBA (entraînement, activités du soir, événements de vie à choix façon *BitLife*, mentalité en match, **moments clés interactifs en direct**, interviews en zone mixte, sponsors à clauses, patrimoine, agents, badges à 4 paliers, trophées et score d'héritage). À la retraite, reconvertissez-vous en **Coach** dans la même sauvegarde !
@@ -84,7 +84,7 @@ node test/engine.test.js 1500        # Banc d'essai statistique NBA + scan anti-
 
 Le dépôt intègre un workflow CI/CD complet dans [`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml).
 À chaque `git push` sur `main` (ou lancement manuel depuis l'onglet *Actions* de GitHub) :
-1. Les 3 suites de tests (`sim.test.js`, `career.test.js`, `engine.test.js`) sont exécutées pour valider le moteur.
+1. Les suites de tests (`sim.test.js`, `engine.test.js`) sont exécutées pour valider le moteur.
 2. Les fichiers web sont compilés dans `dist/` (`npm run build`) et encapsulés via **Capacitor Android** en mode paysage (`sensorLandscape`).
 3. Les icônes et écrans de démarrage sont générés, puis Gradle compile et signe `hoops-manager-26.apk`.
 4. L'APK signé est publié automatiquement en **Artifact** et dans une nouvelle **GitHub Release** (`build-<num>`).
