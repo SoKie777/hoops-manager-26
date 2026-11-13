@@ -1,11 +1,31 @@
 // Test de bout en bout : simule plusieurs saisons complètes et vérifie que les statistiques restent réalistes.
 // Lancement : node test/sim.test.js
 var path = require('path');
+var fs = require('fs');
 var assert = require('assert');
 ['rng', 'data', 'nba-data', 'model', 'tactics', 'development', 'scouting', 'ecosystem', 'engine', 'analysis', 'league', 'legacy'].forEach(function (f) {
   require(path.join(__dirname, '..', 'js', f + '.js'));
 });
 var BM = globalThis.BM;
+
+// Le runtime ne doit plus exposer le mode solo « Ma Carrière ».
+var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+assert(!/src="js\/career(?:-data|-match|-events|-ui)?\.js/.test(html), 'scripts du mode Ma Carrière absents du runtime');
+
+// Boucle sociale : rivalité persistante, trash talk avec conséquence, résultats de la soirée.
+var socialGame = BM.newGame({ seed: 4242, teamId: 5, managerName: 'Social QA' });
+var socialMatch = { side: [socialGame.teams[5], socialGame.teams[8]], score: [112, 108] };
+var rivalry = BM.updateRivalry(socialGame, { type: 'league' }, socialMatch, 0);
+assert.strictEqual(rivalry.meetings, 1, 'première confrontation enregistrée');
+assert.strictEqual(rivalry.userWins, 1, 'victoire ajoutée à l’historique');
+socialGame.reply = { won: true, rival: 8, star: BM.roster(socialGame, socialGame.teams[5])[0].id };
+assert(BM.socialTargets(socialGame).some(function (x) { return x[0] === 'rival'; }), 'les rivaux sont une cible sociale');
+var rivalMood = BM.roster(socialGame, socialGame.teams[8]).reduce(function (v, p) { return v + p.morale; }, 0);
+assert(/^Publié/.test(BM.socialReply(socialGame, 'rival', 'callout')), 'trash talk publié');
+var rivalMoodAfter = BM.roster(socialGame, socialGame.teams[8]).reduce(function (v, p) { return v + p.morale; }, 0);
+assert(rivalMoodAfter < rivalMood, 'trash talk affecte le moral adverse');
+BM.leagueRoundup(socialGame, [{ played: true, type: 'league', home: 5, away: 8, hs: 112, as: 108 }]);
+assert(socialGame.feed.some(function (p) { return p.t.indexOf('112-108') >= 0; }), 'résultat de la ligue publié');
 
 var g = BM.newGame({ seed: 12345, teamId: 5, managerName: 'Test' });
 assert.strictEqual(g.teams.length, 30);
