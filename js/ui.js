@@ -134,7 +134,6 @@ UI.icon = function (k, cls) {
 UI.render = function () {
   var app = document.getElementById('app');
   if (!UI.g) { app.innerHTML = UI.startScreen(); UI.afterRender(); return; }
-  if (UI.g.mode === 'career') { UI.cRender(); return; }
   var g = UI.g, me = g.teams[g.userTeam];
   // Animation d'entrée seulement au changement d'écran (pas à chaque tri ou réglage).
   var screenKey = UI.tab + '/' + (UI.sub[UI.tab] || '');
@@ -212,21 +211,17 @@ UI.startScreen = function () {
           x.rank + 'e effectif · ' + UI.esc(x.star) + '</small></span></button>';
       }).join('') + '</div>';
   };
-  var mode = UI.startMode || 'manager';
   return '<div class="start">' +
     '<div class="start-h">' + UI.ballSvg() + '<h1>Hoops Manager 26</h1><p>Effectifs NBA réels 2026-27, version africaine.</p></div>' +
     '<div class="page">' +
     (hasSave ? '<div class="card wide"><div class="card-h"><h2>Reprendre</h2></div><button class="btn primary block" data-act="loadSave">Charger la partie sauvegardée</button></div>' : '') +
-    '<div class="modepick"><button data-act="startMode" data-v="manager" class="' + (mode === 'manager' ? 'on' : '') + '"><b>Manager</b><span>Tu diriges une franchise : effectif, tactique, mercato, draft.</span></button>' +
-    '<button data-act="startMode" data-v="career" class="' + (mode === 'career' ? 'on' : '') + '"><b>Ma Carrière</b><span>Tu es un joueur : de prospect de 19 ans à la retraite… puis coach.</span></button></div>' +
-    (mode === 'career' ? UI.careerCreate() :
     '<div class="card" style="display:grid;gap:12px">' +
     '<h2>Nouvelle partie</h2>' +
     '<div class="field"><label for="mgr">Nom du coach</label><input type="text" id="mgr" maxlength="30" value="' + UI.esc(UI.mgrName || '') + '" placeholder="Votre nom"></div>' +
     '<div class="field"><label>Choisissez votre club</label>' + confBlock('E') + confBlock('W') + '</div>' +
     '<p class="small muted" style="margin:0">Objectif de la direction pour <b>' + UI.esc(t.city + ' ' + t.nick) + '</b> : ' + BM.OBJECTIVES[obj] + '.</p>' +
     '<button class="btn primary block" data-act="newGame">Commencer</button>' +
-    '</div>') +
+    '</div>' +
     '<div class="card"><div class="card-h"><h2>Importer</h2></div><p class="small muted" style="margin-top:0">Charger un fichier de sauvegarde exporté (.json).</p>' +
     '<input type="file" accept="application/json,.json" data-change="importFile"></div>' +
     '</div></div>';
@@ -284,7 +279,7 @@ UI.tab_home = function () {
     '<div class="kpi"><b data-count="' + morale + '">' + morale + '</b><span>Moral moyen</span>' + UI.bar(morale) + '</div>' +
     '<div class="kpi"><b data-count="' + injured + '">' + injured + '</b><span>Blessé(s) · cohésion ' + Math.round(me.cohesion) + '</span></div>' +
     '</div>' +
-    '<div class="stack">' + nextHtml + UI.upcomingCard(g) + ((g.news || []).length ? '<div class="card"><div class="card-h"><h3>À la une</h3><button class="btn sm" data-act="subtabGo" data-tab="media" data-key="media" data-v="news">Tout voir</button></div>' + UI.newsHtml(g, 3) + '</div>' : '') + tickerHtml + '</div>' +
+    '<div class="stack">' + nextHtml + UI.upcomingCard(g) + ((g.news || []).length ? '<div class="card"><div class="card-h"><h3>À la une</h3><button class="btn sm" data-act="subtabGo" data-tab="media" data-key="media" data-v="news">Tout voir</button></div>' + UI.newsHtml(g, 3) + '</div>' : '') + tickerHtml + ((g.feed || []).length ? '<div class="card"><div class="card-h"><h3>Dans les médias</h3><button class="btn sm" data-act="subtabGo" data-tab="media" data-key="media" data-v="feed">Tout voir</button></div>' + UI.feedHtml(g.feed, 3) + '</div>' : '') + '</div>' +
     '<div class="card inbox"><div class="card-h"><h2>Messagerie</h2><span class="small muted">Objectif : ' + BM.OBJECTIVES[g.objective] + '</span></div>' +
     (msgs.length ? msgs.map(function (m) {
       return '<div class="msg' + (m.read ? '' : ' unread') + '" data-act="openMsg" data-id="' + m.id + '"><div class="ic">' + UI.icon(icons[m.type] || 'info') + '</div><div style="min-width:0">' +
@@ -1403,6 +1398,19 @@ UI.feedHtml = function (list, n) {
       '<p style="margin:2px 0 0">' + UI.esc(f.t) + '</p><span class="small muted">' + (BM.fmtN ? BM.fmtN(f.likes) : f.likes) + ' j\'aime</span></div></div>';
   }).join('');
 };
+UI.rivalriesHtml = function (g) {
+  var me = g.teams[g.userTeam];
+  var list = (g.rivalries || []).filter(function (r) { return r.meetings >= 2 || r.heat >= 30; })
+    .sort(function (a, b) { return b.heat - a.heat || b.meetings - a.meetings; }).slice(0, 5);
+  if (!list.length) return '<p class="small muted" style="margin:0">Les rivalités se construisent au fil des confrontations et des séries de playoffs.</p>';
+  return list.map(function (r) {
+    var opp = g.teams[r.a === me.id ? r.b : r.a];
+    var heat = Math.round(r.heat);
+    var record = r.userWins + '-' + r.oppWins;
+    return '<div class="rivalry"><div class="rivalry-top"><b>' + UI.esc(opp.name) + '</b><span class="small muted">' + r.meetings + ' confrontations · ' + record + '</span></div>' +
+      '<div class="rivalry-meter"><i style="width:' + heat + '%"></i></div><span class="small muted">' + (heat >= 70 ? 'Rivalité brûlante' : heat >= 40 ? 'Tension élevée' : 'Rivalité naissante') + '</span></div>';
+  }).join('');
+};
 UI.newsHtml = function (g, n) {
   var list = (g.news || []).slice(0, n || 20);
   if (!list.length) return '<p class="small muted" style="margin:0">Aucune actualité pour l\'instant.</p>';
@@ -1471,6 +1479,7 @@ UI.tab_media = function () {
   }
   return tabs + '<div class="grid2"><div class="kpi"><b>' + BM.fmtN(BM.fansOf(me)) + '</b><span>Fans des ' + UI.esc(me.nick) + '</span></div><div class="kpi"><b>' + (g.feed || []).filter(function (f) { return f.mine; }).length + '</b><span>Tes publications</span></div>' +
     '<div class="kpi"><b>' + Math.round(BM.roster(g, me).reduce(function (s, p) { return s + BM.relOf(p); }, 0) / Math.max(1, me.roster.length)) + '</b><span>Relation moyenne avec les joueurs</span></div><div class="kpi"><b>' + (g.hof || []).length + '</b><span>Membres du Hall of Fame</span></div></div>' +
+    '<div class="card"><div class="card-h"><h2>Rivalités de la ligue</h2><span class="small muted">Tension & historique</span></div>' + UI.rivalriesHtml(g) + '</div>' +
     '<div class="card"><h2>Fil social</h2>' + UI.feedHtml(g.feed, 20) + '</div>' +
     '<div class="card"><h2>À la une</h2>' + UI.newsHtml(g, 8) + '</div>';
 };
