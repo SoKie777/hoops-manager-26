@@ -1,0 +1,33 @@
+name: Verify Manager
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Simuler les saisons et vérifier la boucle sociale
+        run: npm test
+
+      - name: Vérifier les statistiques du moteur NBA
+        run: node test/engine.test.js 1500 fast
+
+      - name: Construire les fichiers web
+        run: npm run build
