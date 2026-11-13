@@ -1,6 +1,6 @@
 # Hoops Manager 26 (Édition Studio v2.0)
 
-Un jeu complet de management et de carrière de basket pour **PC (Widescreen Studio)** et **Mobile (Android APK)**, en HTML, CSS et JavaScript pur, sans dépendance externe. Il reprend et enrichit la boucle de jeu de *Football Manager Mobile* (analysée dans [docs/ANALYSE.md](docs/ANALYSE.md)) avec une présentation Broadcast NBA et une télémétrie avancée.
+Un jeu complet de management de basket pour **PC (Widescreen Studio)** et **Mobile (Android APK)**, en HTML, CSS et JavaScript pur, sans dépendance externe. Il reprend et enrichit la boucle de jeu de *Football Manager Mobile* (analysée dans [docs/ANALYSE.md](docs/ANALYSE.md)) avec une présentation Broadcast NBA et une télémétrie avancée.
 
 ---
 
