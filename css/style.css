@@ -735,3 +735,10 @@ th .ico { margin-left: 2px; vertical-align: -3px; }
 .rank-track i.cur { background: var(--accent); }
 .bar.prog > i { background: var(--accent); }
 .ach .bar.prog > i[style="width:100%"] { background: var(--gold); }
+
+/* ================================================================ rivalités & médias */
+.rivalry { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.rivalry:last-child { border-bottom: 0; }
+.rivalry-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rivalry-meter { height: 5px; border-radius: 99px; background: var(--panel-3); overflow: hidden; margin: 6px 0 3px; }
+.rivalry-meter i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
