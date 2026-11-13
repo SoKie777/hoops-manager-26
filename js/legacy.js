@@ -311,11 +311,11 @@ var BM = globalThis.BM = globalThis.BM || {};
   };
 
   BM.leagueRoundup = function (g, fixtures) {
-    var games = (fixtures || []).filter(function (f) { return f.played && f.type === 'league'; });
+    var games = (fixtures || []).filter(function (f) { return f.played && (f.type === 'league' || f.type === 'playoff'); });
     if (!games.length) return;
     var results = games.map(function (f) {
       var h = g.teams[f.home], a = g.teams[f.away];
-      return h.short + ' ' + f.hs + '-' + f.as + ' ' + a.short;
+      return (f.type === 'playoff' ? 'PLAYOFFS · ' : '') + h.short + ' ' + f.hs + '-' + f.as + ' ' + a.short;
     });
     BM.post(g, 'Hoops Daily', '@hoopsdaily', 'Résultats de la soirée : ' + results.join(' · '), false, 1);
     var close = games.slice().sort(function (a, b) { return Math.abs(a.hs - a.as) - Math.abs(b.hs - b.as); })[0];
@@ -343,7 +343,7 @@ var BM = globalThis.BM = globalThis.BM || {};
     if (r.chance(0.55)) BM.post(g, 'Fan adverse', '@' + r.pick(FAN_HANDLES), fill(r.pick(won ? POSTS.troll : POSTS.oppFan), o));
     var mates = m.roster[userSide].filter(function (p) { return !star || p.id !== star.id; }).sort(function (a, c) { return (m.box[c.id].pts || 0) - (m.box[a.id].pts || 0); });
     if (mates[0] && r.chance(0.6)) BM.post(g, BM.fullName(mates[0]), '@' + (mates[0].first + mates[0].last).toLowerCase().replace(/[^a-z]/g, ''), fill(r.pick(won ? POSTS.mate : POSTS.mateLoss), o));
-    if (b && b.pts >= 38) BM.post(g, 'Courtside TV', '@courtsidetv', fill(POSTS.big[0], o));
+    if (b && b.pts >= 38 && b.pts < 40) BM.post(g, 'Courtside TV', '@courtsidetv', fill(POSTS.big[0], o));
     if (b) {
       var rebounds = (b.oreb || 0) + (b.dreb || 0);
       if (b.pts >= 40 || (b.pts >= 30 && rebounds >= 10 && b.ast >= 10)) {
@@ -351,6 +351,11 @@ var BM = globalThis.BM = globalThis.BM || {};
         BM.news(g, 'record', BM.fullName(star) + ' signe ' + feat + ' contre ' + opp.name + '.', true);
         BM.post(g, 'Courtside TV', '@courtsidetv', BM.fullName(star) + ' vient de livrer une performance de référence : ' + feat + '.');
       }
+    }
+    if (won && team.record.streak.charAt(0) === 'V' && parseInt(team.record.streak.slice(1), 10) >= 5) {
+      var streak = parseInt(team.record.streak.slice(1), 10);
+      BM.news(g, 'record', team.name + ' signe une série de ' + streak + ' victoires consécutives.', true);
+      BM.post(g, 'Hoops Daily', '@hoopsdaily', team.name + ' est lancé : ' + streak + ' victoires de suite. Qui peut les arrêter ?');
     }
     if (rivalry.meetings >= 2 || fx.type === 'playoff') {
       if (rivalry.heat >= 30) {
