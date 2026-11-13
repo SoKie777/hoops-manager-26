@@ -5,7 +5,7 @@
   "description": "Jeu de management de basket (effectifs NBA, villes africaines), packagé en APK avec Capacitor.",
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "node test/sim.test.js"
+    "test": "node test/sim.test.js && node test/engine.test.js 1500"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
@@ -15,4 +15,4 @@
   "devDependencies": {
     "@capacitor/cli": "^8.5.3"
   }
-}
+}\n
