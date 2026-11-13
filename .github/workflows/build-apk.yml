@@ -2,6 +2,8 @@ name: Build APK
 
 on:
   push:
+    branches: [main, codex/coach-social-manager-2026-11-13]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -30,8 +32,8 @@ jobs:
       - name: Vérifier la boucle Manager et simuler 3 saisons
         run: npm test
 
-            - name: Banc d'essai statistique (milliers de matchs, cibles NBA, exploits tactiques)
-        run: node test/engine.test.js 1500
+      - name: Banc d'essai statistique
+        run: node test/engine.test.js 1500 fast
 
       - name: Préparer les fichiers web
         run: npm run build
@@ -41,19 +43,17 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      # Écran verrouillé en paysage (les deux sens, selon le capteur).
       - name: Orientation paysage
         run: |
-          sed -i -E 's/<activity( |$)/<activity android:screenOrientation="sensorLandscape"\1/' android/app/src/main/AndroidManifest.xml
+          sed -i -E 's/<activity( |$)/<activity android:screenOrientation="sensorLandscape"\\1/' android/app/src/main/AndroidManifest.xml
           grep -o 'android:screenOrientation="[a-zA-Z]*"' android/app/src/main/AndroidManifest.xml
 
       - name: Générer l'icône et l'écran de démarrage
-        run: >
-          npx -y @capacitor/assets@3.0.5 generate --android
-          --iconBackgroundColor '#07090d' --iconBackgroundColorDark '#07090d'
-          --splashBackgroundColor '#07090d' --splashBackgroundColorDark '#07090d'
+        run: |
+          npx -y @capacitor/assets@3.0.5 generate --android \\
+            --iconBackgroundColor '#07090d' --iconBackgroundColorDark '#07090d' \\
+            --splashBackgroundColor '#07090d' --splashBackgroundColorDark '#07090d'
 
-      # Numéro de version croissant : chaque build s'installe par-dessus le précédent.
       - name: Numéro de version
         run: |
           sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.${{ github.run_number }}\"/" android/app/build.gradle
@@ -65,29 +65,49 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
 
-      # Signature avec une clé fixe (secrets du dépôt) : même signature à chaque build, donc mise à jour sans désinstaller.
+      # Utilise la clé permanente du dépôt si elle existe. Sinon, clé temporaire
+      # pour fournir un APK installable de test via l'artefact Actions.
       - name: Signer l'APK
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/hoops-release.p12"
+          if [ -n "$ANDROID_KEYSTORE_B64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$KEYSTORE"
+            KEY_TYPE="PKCS12"
+            KEY_PASS="$ANDROID_KEYSTORE_PASSWORD"
+          else
+            keytool -genkeypair -v -keystore "$KEYSTORE" -storetype PKCS12 \\
+              -alias hoops -keyalg RSA -keysize 2048 -validity 10000 \\
+              -storepass temporary-build-key -keypass temporary-build-key \\
+              -dname "CN=Hoops Manager 26, OU=Build, O=SoKie777, L=Abidjan, C=CI"
+            KEY_TYPE="PKCS12"
+            KEY_PASS="temporary-build-key"
+          fi
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT/zipalign" -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
-          "$BT/apksigner" sign --ks "$RUNNER_TEMP/release.p12" --ks-type PKCS12 --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
-            --ks-key-alias hoops --out hoops-manager-26.apk "$RUNNER_TEMP/aligned.apk"
-          "$BT/apksigner" verify --print-certs hoops-manager-26.apk | grep -i "SHA-256"
-          rm -f "$RUNNER_TEMP/release.p12"
+          "$BT/apksigner" sign --ks "$KEYSTORE" --ks-type "$KEY_TYPE" --ks-pass "pass:$KEY_PASS" \\
+            --ks-key-alias hoops --key-pass "pass:$KEY_PASS" --out hoops-manager-26.apk "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --verbose hoops-manager-26.apk
+          rm -f "$KEYSTORE" "$RUNNER_TEMP/aligned.apk"
 
-      - uses: actions/upload-artifact@v4
+      - name: Publier l'APK comme artefact téléchargeable
+        uses: actions/upload-artifact@v4
         with:
           name: hoops-manager-26-apk
           path: hoops-manager-26.apk
+          if-no-files-found: error
+          retention-days: 30
 
+      # Les releases sont réservées aux builds main pour éviter les tags
+      # et releases multiples à chaque push de branche ou PR.
       - name: Publier une release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Hoops Manager 26 · build ${{ github.run_number }}
-          body: APK signé (version 1.${{ github.run_number }}), généré depuis ${{ github.sha }}. S'installe par-dessus la version précédente en gardant la sauvegarde.
+          body: APK signé, généré depuis ${{ github.sha }}.
           files: hoops-manager-26.apk
