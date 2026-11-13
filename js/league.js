@@ -10,6 +10,7 @@ BM.newGame = function (opts) {
     version: BM.VERSION,
     rng: new BM.RNG(opts.seed || Date.now()),
     nextId: 1, day: 0, season: 1, seasonStart: 0,
+    mode: 'manager',
     managerName: opts.managerName || 'Coach',
     userTeam: opts.teamId, phase: 'regular',
     players: {}, teams: [], freeAgents: [], fixtures: [], playoffs: null,
